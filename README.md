@@ -1,6 +1,5 @@
 # smart-developer
 
-Static site published with GitHub Pages.
+Deployment target for the Small Developer Copilot app.
 
-## Deploy
-Push to `main`, then GitHub Actions deploys the site to GitHub Pages.
+Published via GitHub Pages from the `main` branch using GitHub Actions.
