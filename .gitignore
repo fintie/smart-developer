@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.python-version
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Environment / secrets
+.env
+.env.*
+*.env
+
+# Python packaging / build
+build/
+dist/
+*.egg-info/
+
+# Data
+data/raw/*
+data/cleaned/*
+data/processed/*
+
+# Keep folder structure
+!data/raw/.gitkeep
+!data/cleaned/.gitkeep
+!data/processed/.gitkeep
+
+# Algorithm artifacts
+algorithm/artifacts/models/*
+algorithm/artifacts/scalers/*
+algorithm/artifacts/encoders/*
+algorithm/artifacts/evaluation/*
+
+# Keep folder structure
+!algorithm/artifacts/models/.gitkeep
+!algorithm/artifacts/scalers/.gitkeep
+!algorithm/artifacts/encoders/.gitkeep
+!algorithm/artifacts/evaluation/.gitkeep
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/.next/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+
+# Test / coverage
+.coverage
+.pytest_cache/
+htmlcov/
