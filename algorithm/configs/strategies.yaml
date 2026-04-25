@@ -1,0 +1,167 @@
+strategies:
+  single_dwelling_rebuild:
+    label: "Single Dwelling Rebuild"
+    description: "Conservative low-intensity residential redevelopment."
+    zoning:
+      strong_positive: ["R1", "R2", "R5", "RU5"]
+      medium_positive: ["R3"]
+      weak_positive: ["MU1"]
+      negative: ["C2", "C3", "C4", "RE1", "RU1", "RU4", "SP2", "W1", "W2", "W3", "W4"]
+    lot_size:
+      preferred_bands: ["s", "m", "l"]
+      min_soft_sqm: 400
+      strong_sqm: 800
+    accessibility:
+      weight: 0.4
+      prefer_within_800m: false
+    constraints:
+      heritage_weight: 1.0
+      flood_weight: 1.0
+      bushfire_weight: 0.8
+
+  assembly_opportunity:
+    label: "Assembly Opportunity"
+    description: "Strategic redevelopment or land aggregation potential."
+    zoning:
+      strong_positive: ["MU1", "R4", "SP5", "E1", "E2", "E3"]
+      medium_positive: ["R3", "R1"]
+      weak_positive: ["R2"]
+      negative: ["C2", "C3", "C4", "RE1", "RU1", "RU4", "W1", "W2", "W3", "W4"]
+    lot_size:
+      preferred_bands: ["l", "xl"]
+      min_soft_sqm: 1500
+      strong_sqm: 4000
+    accessibility:
+      weight: 1.2
+      prefer_within_800m: true
+    constraints:
+      heritage_weight: 1.2
+      flood_weight: 1.1
+      bushfire_weight: 1.0
+
+  granny_flat:
+    label: "Granny Flat"
+    description: "Low-intensity secondary dwelling opportunity."
+    zoning:
+      strong_positive: ["R2", "R1", "R5"]
+      medium_positive: ["R3"]
+      weak_positive: ["RU5"]
+      negative: ["MU1", "R4", "C2", "C3", "C4", "RE1", "RU1", "RU4", "SP2", "W1", "W2", "W3", "W4"]
+    lot_size:
+      preferred_bands: ["m", "l", "xl"]
+      min_soft_sqm: 600
+      strong_sqm: 1000
+    accessibility:
+      weight: 0.5
+      prefer_within_800m: false
+    constraints:
+      heritage_weight: 1.0
+      flood_weight: 1.0
+      bushfire_weight: 0.9
+
+  land_bank_hold:
+    label: "Land Bank / Hold"
+    description: "Longer-term hold strategy with future upside potential."
+    zoning:
+      strong_positive: ["MU1", "R4", "R3", "SP5", "E1", "E2", "E3"]
+      medium_positive: ["R1", "R2"]
+      weak_positive: ["RU5", "R5"]
+      negative: ["C2", "C3", "C4", "RE1", "RU1", "RU4", "W1", "W2", "W3", "W4"]
+    lot_size:
+      preferred_bands: ["m", "l", "xl"]
+      min_soft_sqm: 800
+      strong_sqm: 2000
+    accessibility:
+      weight: 1.2
+      prefer_within_800m: true
+    constraints:
+      heritage_weight: 0.8
+      flood_weight: 0.9
+      bushfire_weight: 0.8
+
+  townhouse_multi_dwelling:
+    label: "Townhouse / Multi-Dwelling"
+    description: "Medium-density redevelopment opportunity."
+    zoning:
+      strong_positive: ["R3", "MU1"]
+      medium_positive: ["R4", "R1"]
+      weak_positive: ["R2"]
+      negative: ["C2", "C3", "C4", "RE1", "RU1", "RU4", "SP2", "W1", "W2", "W3", "W4"]
+    lot_size:
+      preferred_bands: ["l", "xl"]
+      min_soft_sqm: 1000
+      strong_sqm: 2500
+    accessibility:
+      weight: 1.0
+      prefer_within_800m: true
+    constraints:
+      heritage_weight: 1.2
+      flood_weight: 1.1
+      bushfire_weight: 1.0
+
+  low_rise_apartment:
+    label: "Low-Rise Apartment"
+    description: "Higher-intensity redevelopment with stronger planning and accessibility requirements."
+    zoning:
+      strong_positive: ["R4", "MU1", "SP5", "E1", "E2"]
+      medium_positive: ["R3", "E3"]
+      weak_positive: ["R1"]
+      negative: ["R2", "R5", "RU1", "RU4", "C2", "C3", "C4", "RE1", "SP2", "W1", "W2", "W3", "W4"]
+    lot_size:
+      preferred_bands: ["xl"]
+      min_soft_sqm: 2000
+      strong_sqm: 5000
+    accessibility:
+      weight: 1.5
+      prefer_within_800m: true
+    constraints:
+      heritage_weight: 1.3
+      flood_weight: 1.2
+      bushfire_weight: 1.1
+
+  dual_occupancy:
+    label: "Dual Occupancy"
+    description: "Moderate-density infill pathway for residential sites."
+    zoning:
+      strong_positive: ["R2", "R1"]
+      medium_positive: ["R3", "R5"]
+      weak_positive: ["RU5"]
+      negative: ["MU1", "R4", "C2", "C3", "C4", "RE1", "RU1", "RU4", "SP2", "W1", "W2", "W3", "W4"]
+    lot_size:
+      preferred_bands: ["m", "l", "xl"]
+      min_soft_sqm: 700
+      strong_sqm: 1200
+    accessibility:
+      weight: 0.6
+      prefer_within_800m: false
+    constraints:
+      heritage_weight: 1.0
+      flood_weight: 1.0
+      bushfire_weight: 0.9
+
+shared:
+  lot_size_bands:
+    xs: [0, 500]
+    s: [500, 1000]
+    m: [1000, 2000]
+    l: [2000, 5000]
+    xl: [5000, null]
+
+  bushfire_risk_penalty:
+    0: 0.00
+    1: 0.05
+    2: 0.12
+    3: 0.20
+
+  heritage_significance_penalty:
+    Local: 0.10
+    State: 0.20
+    National: 0.25
+
+  flood_penalty:
+    default: 0.25
+
+  accessibility_bonus:
+    within_800m: 0.15
+    within_2km: 0.08
+    within_5km: 0.03
