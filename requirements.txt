@@ -12,6 +12,7 @@ geopandas==1.0.1
 scikit-learn==1.5.2
 xgboost==2.1.1
 torch==2.4.1
+ollama
 
 geopandas==1.0.1
 shapely==2.0.6
@@ -23,3 +24,4 @@ matplotlib==3.9.2
 
 pytest==8.3.3
 httpx==0.27.2
+pyyaml
