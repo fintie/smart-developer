@@ -93,7 +93,7 @@ Each strategy score should remain explainable in plain English:
 
 For each strategy $s$, we define a site suitability score as
 
-$$S_s(x) = 100 \cdot \mathrm{clip}\!\left(B_s + F_s(x) + O_s(x) - C_s(x),\, 0,\, 1\right)$$
+$$S_s(x) = 100 \cdot \text{clip}(B_s + F_s(x) + O_s(x) - C_s(x),0,1)$$
 
 where:
 
@@ -102,11 +102,11 @@ where:
 - $F_s(x)$ is the feasibility component
 - $O_s(x)$ is the opportunity bonus component
 - $C_s(x)$ is the constraint penalty component
-- $\mathrm{clip}(\cdot,0,1)$ truncates the score into the interval $[0,1]$
+- $\text{clip}(\cdot,0,1)$ truncates the score into the interval $[0,1]$
 
 A more explicit weighted version is
 
-$$S_s(x) = 100 \cdot \mathrm{clip}\!\left(B_s + w^{(F)}_s F_s(x) + w^{(O)}_s O_s(x) - w^{(C)}_s C_s(x),\, 0,\, 1\right)$$
+$$S_s(x) = 100 \cdot \text{clip}(B_s + w^{(F)}_s F_s(x) + w^{(O)}_s O_s(x) - w^{(C)}_s C_s(x),0,1)$$
 
 where the weights $w^{(F)}_s$, $w^{(O)}_s$, and $w^{(C)}_s$ depend on the strategy.
 
