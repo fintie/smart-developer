@@ -5,6 +5,7 @@ pydantic-settings==2.5.2
 sqlalchemy==2.0.35
 psycopg[binary]==3.2.3
 python-dotenv==1.0.1
+tqdm
 
 numpy==2.1.1
 pandas==2.2.3
@@ -13,6 +14,8 @@ scikit-learn==1.5.2
 xgboost==2.1.1
 torch==2.4.1
 ollama
+sentence_transformers
+transformers
 
 geopandas==1.0.1
 shapely==2.0.6

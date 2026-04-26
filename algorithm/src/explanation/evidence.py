@@ -139,12 +139,28 @@ def _cautions(row: pd.Series) -> list[str]:
     cautions: list[str] = []
 
     if int(row.get("mixed_zoning_flag", 0) or 0) == 1:
-        cautions.append("The site intersects more than one zoning context and may require closer planning review.")
+        cautions.append("The site sits in a mixed zoning context and may require closer planning review.")
 
     if pd.notna(row.get("lot_size_proxy_sqm")) and float(row["lot_size_proxy_sqm"]) > 1e7:
         cautions.append("The site area appears unusually large and may warrant manual validation.")
 
     return cautions
+
+
+def _prioritized_negative_evidence(row: pd.Series) -> list[str]:
+    negatives = _negative_evidence(row)
+    cautions = _cautions(row)
+
+    # strong constraints：heritage / flood / bushfire
+    if negatives:
+        ranked = negatives[:2]
+
+        if int(row.get("mixed_zoning_flag", 0) or 0) == 1:
+            ranked.append("The mixed zoning context may still warrant closer planning review.")
+
+        return ranked[:3]
+
+    return cautions[:2]
 
 
 def build_explanation_payload(row: pd.Series, strategy: str) -> ExplanationPayload:
@@ -156,8 +172,8 @@ def build_explanation_payload(row: pd.Series, strategy: str) -> ExplanationPaylo
     positives += _lot_size_positive(strategy, row.get("lot_size_proxy_sqm"))
     positives += _access_positive(strategy, row.get("within_800m_catchment"), row.get("distance_to_station_m"))
 
-    negatives = _negative_evidence(row)
-    cautions = _cautions(row)
+    negatives = _prioritized_negative_evidence(row)
+    cautions: list[str] = []
 
     return ExplanationPayload(
         strategy=strategy,
