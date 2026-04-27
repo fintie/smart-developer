@@ -112,9 +112,11 @@ where:
 - $q$ and $c$ are dense vectors
 
 Similarity is computed using the dot product of normalised embeddings:
+
 $$
 s(q, c) = q^\top c
 $$
+
 Higher similarity means stronger retrieval relevance.
 
 ## 5. Training Variants
@@ -153,9 +155,11 @@ The retrieved candidates are reranked using both:
 - heuristic strategy score
 
 A simplified fusion rule is:
+
 $$
 \text{final score} = \alpha \cdot \text{sim}_{norm} + \beta \cdot \text{score}_{norm}
 $$
+
 where:
 - $\text{sim}_{norm}$ is normalized retrieval similarity
 - $\text{score}_{norm}$ is normalised heuristic strategy score
