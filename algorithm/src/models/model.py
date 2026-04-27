@@ -33,9 +33,9 @@ class TextEncoder(nn.Module):
         return summed / counts
 
     def forward(
-            self,
-            input_ids: torch.Tensor,
-            attention_mask: torch.Tensor
+        self,
+        input_ids: torch.Tensor,
+        attention_mask: torch.Tensor
     ) -> torch.Tensor:
         outputs = self.backbone(
             input_ids=input_ids,
