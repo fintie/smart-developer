@@ -7,6 +7,11 @@ echo "============================================================"
 python -m algorithm.src.features.build_features
 
 echo "============================================================"
+echo "Step 2/5: Building strategy scores"
+echo "============================================================"
+python -m algorithm.src.scoring.scoring
+
+echo "============================================================"
 echo "Step 2/5: Building retrieval candidate sites"
 echo "============================================================"
 python -m algorithm.src.retrieval.build_candidate_sites
@@ -19,12 +24,12 @@ python -m algorithm.src.retrieval.build_training_pairs
 echo "============================================================"
 echo "Step 4/5: Training two-tower model"
 echo "============================================================"
-python -m algorithm.src.models.train_two_tower
+python -m algorithm.src.models.train_two_tower_v1 --experiment two_tower_v1
 
 echo "============================================================"
 echo "Step 5/5: Evaluating two-tower model"
 echo "============================================================"
-python -m algorithm.src.models.evaluate_two_tower
+python -m algorithm.src.models.evaluate_two_tower --experiment two_tower_v1
 
 echo "============================================================"
 echo "Pipeline completed successfully."
