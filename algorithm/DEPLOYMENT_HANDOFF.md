@@ -293,8 +293,8 @@ After environment setup and artifact placement:
 ```bash
 python -m algorithm.demo_retrieval \
   --experiment two_tower_v1 \
-  --strategy low_rise_apartment \
-  --query-text "I want a site for low-rise apartment redevelopment near a train station, with high development zoning, a large site, and limited planning constraints." \
+  --strategy single_dwelling_rebuild \
+  --query-text "I want a site for detached house redevelopment on standard residential land, with low planning constraints and a suitable lot size." \
   --top-k 5 \
   --with-explanations
 ```

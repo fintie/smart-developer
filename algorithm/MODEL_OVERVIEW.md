@@ -1,12 +1,12 @@
 # Model Overview
 
-This document summarises the current retrieval and scoring models used in the Smart Developer prototype.
+This document summarises the current retrieval, reranking, and explanation models used in the Smart Developer prototype.
 
 The system is designed to retrieve property sites that match a given development strategy, then explain why those sites appear relevant.
 
 ## 1. Problem Setting
 
-We formulate the task as **strategy-to-site retrieval**.
+We formulate the task as **strategy-to-site retrieval and reranking**.
 
 Given:
 - a development strategy query, such as `low_rise_apartment` or `dual_occupancy`
@@ -41,7 +41,7 @@ Each site is represented using a feature bundle derived from open geospatial and
 - within-800m catchment flag
 - station distance band
 
-These structured fields are also converted into compact text representations for retrieval.
+These structured fields are also converted into compact text representations for retrieval and pairwise reranking.
 
 ## 3. Heuristic Multi-Strategy Scoring
 
@@ -68,14 +68,15 @@ $$
 \text{score} = \text{feasibility} + \text{opportunity} - \text{constraint penalty}
 $$
 
-This scorecard serves three purposes:
+This scorecard serves four purposes:
 1. an interpretable baseline
 2. a weak label generator
-3. a reranking signal
+3. a retrieval supervision source
+4. a reranking signal
 
 ## 4. Two-Tower Retrieval Model
 
-The learned retrieval model is a **two-tower / bi-encoder architecture**.
+The first-stage learned retrieval model is a **two-tower / bi-encoder architecture**.
 
 One tower encodes the strategy query.  
 The other tower encodes the candidate site text.
@@ -119,7 +120,7 @@ $$
 
 Higher similarity means stronger retrieval relevance.
 
-## 5. Training Variants
+## 5. Two-Tower Training Variants
 
 ### Two-Tower V1
 The first version is trained with positive query-candidate pairs and in-batch negatives.
@@ -142,22 +143,80 @@ where:
 
 This version is better at sharpening boundaries between similar strategies, but can be less balanced overall.
 
-## 6. Hybrid Retrieval and Reranking
+## 6. DCN Reranker
 
-The current serving stack uses **hybrid retrieval**.
+The second-stage reranker is a **Deep & Cross Network (DCN)**.
 
-### Step 1: learned retrieval
+Unlike the two-tower model, which is designed for efficient candidate recall, the DCN reranker scores each retrieved **query-candidate pair** directly using structured features.
+
+### Why DCN
+This problem contains many important feature interactions, for example:
+- zoning × lot size
+- zoning × transport access
+- strategy × constraint pattern
+- strategy × site intensity
+- retrieval similarity × heuristic strategy score
+
+These are exactly the kinds of interactions that a cross network is designed to model.
+
+### Input to the reranker
+The DCN reranker consumes pair-level features such as:
+- retrieval similarity
+- strategy-specific heuristic score
+- lot size proxy
+- zoning code / zoning band
+- lot size band
+- station distance band
+- constraint severity band
+- mixed zoning flag
+- heritage flag
+- flood flag
+- bushfire risk level
+- within-800m catchment flag
+- top strategy score
+
+### Cross Network intuition
+A simplified cross layer is:
+
+$$
+x_{l+1} = x_0 (w_l^\top x_l) + b_l + x_l
+$$
+
+where:
+- $x_0$ is the original input
+- $x_l$ is the current layer representation
+
+This allows the model to explicitly learn useful feature crosses rather than relying only on implicit MLP interactions.
+
+### Output
+The reranker outputs a pairwise relevance logit:
+
+$$
+r(q, c) = g_{\phi}(z_{q,c})
+$$
+
+where:
+- $z_{q,c}$ is the structured feature vector for the query-candidate pair
+- $r(q, c)$ is the reranking score
+
+The reranker is trained as a binary relevance model using weak supervision derived from strategy scores.
+
+## 7. Retrieval and Reranking Stack
+
+The current serving stack is:
+
+### Step 1: first-stage recall
 The tuned two-tower model retrieves a candidate pool using embedding similarity.
 
-### Step 2: fusion reranking
-The retrieved candidates are reranked using both:
+### Step 2: heuristic fusion baseline
+A simple fallback / baseline reranking combines:
 - retrieval similarity
 - heuristic strategy score
 
 A simplified fusion rule is:
 
 $$
-\text{final score} = \alpha \cdot \text{sim}_{norm} + \beta \cdot \text{score}_{norm}
+\text{fusion score} = \alpha \cdot \text{sim}_{norm} + \beta \cdot \text{score}_{norm}
 $$
 
 where:
@@ -165,11 +224,21 @@ where:
 - $\text{score}_{norm}$ is normalised heuristic strategy score
 - $\alpha$ and $\beta$ control the balance
 
-This helps combine:
-- the semantic flexibility of learned retrieval
-- the interpretability of the heuristic scoring layer
+### Step 3: learned second-stage reranking
+The current preferred reranking layer is the DCN reranker, which reorders the recalled candidates using structured pair features.
 
-## 7. Post-Processing
+So the recommended inference path is:
+
+```text
+strategy + query_text
+-> two_tower_v1 recall
+-> dcn_reranker_v1 rerank
+-> dedupe
+-> optional explanation
+-> top-k results
+```
+
+## 8. Post-Processing
 
 After reranking, the system applies lightweight serving logic such as:
 - address-based deduplication
@@ -178,7 +247,7 @@ After reranking, the system applies lightweight serving logic such as:
 
 This improves demo quality and avoids repeated near-duplicate results from the same building or site.
 
-## 8. Explanation Layer
+## 9. Explanation Layer
 
 The explanation layer is local and does not rely on external LLM APIs for core retrieval.
 
@@ -192,7 +261,7 @@ The explanation typically covers:
 - positive drivers
 - main constraints
 
-## 9. Current System Role
+## 10. Current System Role
 
 The current model stack should be viewed as a prototype retrieval system with weak supervision.
 
@@ -204,7 +273,7 @@ It is already useful for:
 
 It is not yet a final production ranking system.
 
-## 10. Current Strengths
+## 11. Current Strengths
 
 - interpretable property-level feature bundle
 - strategy-specific site scoring
@@ -213,19 +282,10 @@ It is not yet a final production ranking system.
 - local explanation generation
 - modular architecture for future extension
 
-## 11. Current Limitations
+## 12. Current Limitations
 
 - supervision is derived from heuristic scoring rather than human-labelled relevance
 - some strategies overlap strongly, making evaluation harder
 - top-strategy match is not always the best metric for strategic or ambiguous cases
 - explanation diversity is still limited when many sites share similar evidence
 - more robust human evaluation is still needed
-
-## 12. Next Steps
-
-Likely next steps include:
-- human-labelled retrieval evaluation
-- strategy-specific routing or reranking
-- improved hard negative mining
-- better explanation diversity
-- API serving and product integration
