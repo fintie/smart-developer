@@ -1,20 +1,31 @@
 # Smart Developer
 
-Internal prototype for strategy-aware property site retrieval and explanation.
+Working internal ML pipeline for strategy-aware property site retrieval, reranking, and explanation.
 
-This repo contains the current algorithm pipeline only. **All previous works are moved to `frontend/` directory.**
+This repo contains the current algorithm pipeline for Smart Developer.  
+It is designed for internal use by the product lead and engineering team, and is intended to support backend integration and internal demo deployment.
 
 The current system supports:
 * property-level geospatial feature building
 * multi-strategy heuristic site scoring
 * two-tower retrieval for intent-to-site matching
-* hybrid reranking
+* DCN-based reranking
 * local explanation generation
 * terminal / notebook demo workflows
+* backend-facing inference entrypoints
 
-The current retrieval stack is already usable for internal demo:
-* user provides a development strategy + free-text intent
-* system retrieves relevant strategy-aware explanations
+The current default inference stack is:
+
+```text
+strategy + query_text
+-> two_tower_v1 recall
+-> dcn_reranker_v1 rerank
+-> dedupe
+-> optional explanation
+-> return top-k
+```
+
+It is now a usable internal algorithm pipeline with deployable inference components.
 
 ## Repo structure
 ### Main working area
@@ -126,7 +137,7 @@ Run:
 ```bash
 python -m algorithm.src.retrieval.build_training_pairs
 ```
-This creates: `data/processed/training_pairs.parquet`
+This creates: `data/processed/retrieval/training_pairs.parquet`
 
 These pairs are derived from the heuristic strategy scoring layer.
 
@@ -220,24 +231,22 @@ If explanations fail, check:
 * local endpoint is available
 
 ## Current default recommendation for demo
-For internal demo, the current best default setup is:
-* retrieval backbone: `two_tower_v1` (I already tuned hyperparameters)
-* reranking: hybrid fusion
+
+For internal demo, the current recommended setup is:
+* retrieval backbone: `two_tower_v1`
+* reranker: `dcn_reranker_v1`
 * dedupe: enabled
 * explanations: enabled
 
 In practice, the easiest command is:
+
 ```bash
-python -m algorithm.demo_retrieval \
-  --experiment two_tower_v1 \
-  --with-explanations
+python -m algorithm.demo_retrieval --experiment two_tower_v1 --with-explanations
 ```
 
-You can either enter:
-* strategy
-* free-text intent query
-
-interactive.
+By default, the demo path uses:
+* `two_tower_v1` or candidate recall
+* `dcn_reranker_v1` for second-stage reranking
 
 ## Configuration files
 ### Strategy scoring
@@ -257,23 +266,31 @@ Useful internal docs:
 
 These explain the retrieval / scoring design at high level.
 
-## For frontend/backend development
-If you do not need to retrain models, the most relevant pieces are:
+## For frontend/backend integration
 
-**Input artifacts**
-* `data/processed/retrieval/candidate_sites.parquet`
-* trained model under `algorithm/artifacts/models/two_tower_v1/`
+If you do not need to retrain models, the main inference entrypoint is:
 
-**Demo / serving logic**
+* `algorithm/src/inference/predictor.py`
+
+Recommended function to call:
+
+```python
+from algorithm.src.inference.predictor import retrieve_sites
+```
+
+This returns a backend-friendly Python dict containing:
+* request metadata
+* ranked site results
+* retrieval / reranking scores
+* explanation text if enabled
+
+Core serving components:
+* `algorithm/src/inference/predictor.py`
 * `algorithm/src/retrieval/hybrid_retrieve.py`
-* `algorithm/demo_retrieval.py`
-
-**Explanation logic**
 * `algorithm/src/explanation/`
 
-For product / integration work, the main idea is:
-* pass in a strategy + user intent text
-* retrieve top-$k$ sites
-* display fusion score + explanation
-
-If we want to display result in accordance to input address as well, then it is easy to extend from the current version.
+Required inference artifacts:
+* `data/processed/retrieval/candidate_sites.parquet`
+* `algorithm/artifacts/models/two_tower_v1/model.pt`
+* `algorithm/artifacts/models/dcn_reranker_v1/model.pt`
+* `algorithm/artifacts/models/dcn_reranker_v1/preprocessing.json`
