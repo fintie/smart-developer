@@ -37,7 +37,12 @@ pip install -r requirements.txt
 ### Local explanation model
 Explanation currently uses a local Ollama model.
 
-Install Ollama, then pull:
+Install Ollama, open another terminal:
+```bash
+ollama serve
+```
+
+then, return to your working terminal, and pull:
 ```bash
 ollama pull llama3.1:8b-instruct-q4_K_M
 ```
@@ -53,11 +58,25 @@ These files MUST exist locally on the deployment machine:
 
 **Data**: `data/processed/retrieval/candidate_sites.parquet`
 
+```text
+data/processed/retrieval/
+└── candidate_sites.parquet
+```
+
 **Retrieval model**: `algorithm/artifacts/models/two_tower_v1/model.pt`
 
 **DCN reranker**: 
 * `algorithm/artifacts/models/dcn_reranker_v1/model.pt`
 * `algorithm/artifacts/models/dcn_reranker_v1/preprocessing.json`
+
+```text
+algorithm/artifacts/models/
+├── dcn_reranker_v1
+│   ├── model.pt
+│   └── preprocessing.json
+└── two_tower_v1
+    └── model.pt
+```
 
 **Optional**: If explanation is enabled, local Ollama model installed and available.
 

@@ -85,7 +85,7 @@ The large processed parquet files are **not expected to be rebuilt from scratch*
 I've shared a Google Drive folder in the project WhatsApp group chat.
 
 ### What to do
-Download the shared parquet files and put them into the matching folders accordingly:
+Download the parquet files from the **shared Google Drive** and put them into the matching folders accordingly:
 * `data/processed/nsw_addressing/`
 * `data/processed/nsw_bushfire/`
 * `data/processed/nsw_flood/`
@@ -93,6 +93,26 @@ Download the shared parquet files and put them into the matching folders accordi
 * `data/processed/nsw_property/`
 * `data/processed/nsw_zoning/`
 * `data/processed/transport/`
+
+```text
+data/processed/
+├── nsw_addressing/
+│   └── addresspoint_all.parquet
+├── nsw_bushfire/
+│   └── bushfire.parquet
+├── nsw_flood/
+│   └── flood.parquet
+├── nsw_heritage/
+│   └── heritage.parquet
+├── nsw_property/
+│   └── property.parquet
+├── nsw_zoning/
+│   └── land_zoning.parquet
+├── retrieval/
+├── site_features/
+└── transport/
+    └── rail_metro_stations_raw.parquet
+```
 
 Once these are done, start from:
 ```bash
@@ -146,29 +166,17 @@ Model configs and hyperparameters are in `algorithm/configs/model.yaml`
 
 Experiments are selected through argparse `--experiment`
 
-Train `two_tower_v1`:
+Train `two_tower_v1` (best model):
 ```bash
 python -m algorithm.src.models.train_two_tower_v1 --experiment two_tower_v1
 ```
 
-Train `two_tower_v2`:
-```bash
-python -m algorithm.src.models.train_two_tower_v2 --experiment two_tower_v2
-```
-
-Artifacts are saved under:
-* `algorithm/artifacts/models/two_tower_v1/`
-* `algorithm/artifacts/models/two_tower_v2/`
+Artifacts are saved under: `algorithm/artifacts/models/two_tower_v1/`
 
 ### 6. Evaluate retrieval models
 Evaluate v1
 ```bash
 python -m algorithm.src.models.evaluate_two_tower --experiment two_tower_v1
-```
-
-Evaluate v2
-```bash
-python -m algorithm.src.models.evaluate_two_tower --experiment two_tower_v2
 ```
 
 Evaluation outputs are saved under the corresponding model artifact folders.
