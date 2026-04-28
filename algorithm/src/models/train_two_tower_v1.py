@@ -17,7 +17,7 @@ from tqdm import tqdm
 from transformers import AutoTokenizer, get_linear_schedule_with_warmup
 
 from algorithm.src.models.datasets import PositivePairDataset
-from algorithm.src.models.model import TwoTowerModel
+from algorithm.src.models.two_tower_model import TwoTowerModel
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -54,7 +54,12 @@ def set_seed(seed: int) -> None:
 def get_device(cfg: dict) -> torch.device:
     device_cfg = cfg["training"]["device"]
     if device_cfg == "auto":
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device("cpu")
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+        return device
     return torch.device(device_cfg)
 
 

@@ -66,3 +66,58 @@ experiments:
     output:
       model_dir: "algorithm/artifacts/models/two_tower_v2"
       metrics_path: "algorithm/artifacts/models/two_tower_v2/metrics.json"
+
+  dcn_reranker_v1:
+    model:
+      name: "dcn_reranker_v1"
+      architecture: "dcn"
+      input_dim: 16
+      cross_layers: 3
+      deep_hidden_dims: [64, 32]
+      dropout: 0.1
+    data:
+      reranker_train_path: "algorithm/artifacts/reranker/reranker_train.parquet"
+      reranker_eval_path: "algorithm/artifacts/reranker/reranker_eval.parquet"
+      target_col: "label"
+      feature_cols:
+        - retrieval_similarity
+        - strategy_score
+        - lot_size_proxy_sqm
+        - mixed_zoning_flag
+        - heritage_flag
+        - bushfire_risk_level
+        - flood_flag
+        - within_800m_catchment
+        - top_strategy_score
+      numeric_feature_cols:
+        - retrieval_similarity
+        - strategy_score
+        - lot_size_proxy_sqm
+        - bushfire_risk_level
+        - top_strategy_score
+      categorical_feature_cols:
+        - primary_zoning_code
+        - zoning_band
+        - lot_size_band
+        - constraint_severity_band
+        - station_distance_band
+      binary_feature_cols:
+        - mixed_zoning_flag
+        - heritage_flag
+        - flood_flag
+        - within_800m_catchment
+    training:
+      batch_size: 128
+      epochs: 20
+      learning_rate: 1.0e-3
+      weight_decay: 1.0e-5
+      gradient_clip_norm: 1.0
+    loss:
+      name: "bce"
+    reranking:
+      recall_model_experiment: "two_tower_v1"
+      recall_k: 200
+      final_top_k: 50
+    output:
+      model_dir: "algorithm/artifacts/models/dcn_reranker_v1"
+      metrics_path: "algorithm/artifacts/models/dcn_reranker_v1/metrics.json"

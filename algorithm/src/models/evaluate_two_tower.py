@@ -12,7 +12,7 @@ import yaml
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
-from algorithm.src.models.model import TwoTowerModel
+from algorithm.src.models.two_tower_model import TwoTowerModel
 
 
 ROOT = Path(__file__).resolve().parents[3]

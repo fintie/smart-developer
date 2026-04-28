@@ -61,6 +61,9 @@ def main() -> None:
     parser.add_argument("--alpha", type=float, default=0.5, help="Retrieval similarity weight")
     parser.add_argument("--beta", type=float, default=0.5, help="Heuristic score weight")
     parser.add_argument("--with-explanations", action="store_true")
+    parser.add_argument("--no-dcn-reranker", action="store_true")
+    parser.add_argument("--dcn-experiment", default="dcn_reranker_v1")
+    parser.add_argument("--dcn-experiment", default="dcn_reranker_v1")
     parser.add_argument("--no-dedupe", action="store_true")
     args = parser.parse_args()
 
@@ -84,6 +87,8 @@ def main() -> None:
         beta=args.beta,
         dedupe_by_address=not args.no_dedupe,
         attach_explanations=args.with_explanations,
+        use_dcn_reranker=args.use_dcn_reranker,
+        dcn_experiment=args.dcn_experiment,
     )
 
     results = retriever.retrieve(request)

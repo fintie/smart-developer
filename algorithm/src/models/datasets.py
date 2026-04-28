@@ -1,4 +1,5 @@
 from __future__ import annotations
+import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
@@ -93,4 +94,19 @@ class TripletTextDataset(Dataset):
             "positive_attention_mask": p_enc["attention_mask"],
             "negative_input_ids": n_enc["input_ids"],
             "negative_attention_mask": n_enc["attention_mask"],
+        }
+
+
+class RerankerDataset(Dataset):
+    def __init__(self, X: np.ndarray, y: np.ndarray) -> None:
+        self.X = torch.tensor(X, dtype=torch.float32)
+        self.y = torch.tensor(y, dtype=torch.float32)
+
+    def __len__(self) -> int:
+        return len(self.X)
+
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
+        return {
+            "features": self.X[idx],
+            "label": self.y[idx],
         }

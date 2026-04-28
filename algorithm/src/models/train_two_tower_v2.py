@@ -17,7 +17,7 @@ from tqdm import tqdm
 from transformers import AutoTokenizer, get_linear_schedule_with_warmup
 
 from algorithm.src.models.datasets import TripletTextDataset
-from algorithm.src.models.model import TwoTowerModel
+from algorithm.src.models.two_tower_model import TwoTowerModel
 
 
 ROOT = Path(__file__).resolve().parents[3]

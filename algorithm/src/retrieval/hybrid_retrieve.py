@@ -1,6 +1,7 @@
 from __future__ import annotations
 import argparse
 import re
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -10,8 +11,11 @@ import pandas as pd
 import torch
 import yaml
 from transformers import AutoTokenizer
+from sklearn.preprocessing import StandardScaler
 
-from algorithm.src.models.model import TwoTowerModel
+from algorithm.src.models.dcn_reranker import DCNReranker
+
+from algorithm.src.models.two_tower_model import TwoTowerModel
 from algorithm.src.explanation.evidence import build_explanation_payload
 from algorithm.src.explanation.pipeline import explain_row
 
@@ -86,6 +90,8 @@ class RetrievalRequest:
     dedupe_address_col: str = "address"
     attach_explanations: bool = False
     explanation_model: str = "llama3.1:8b-instruct-q4_K_M"
+    use_dcn_reranker: bool = False
+    dcn_experiment: str = "dcn_reranker_v1"
 
 
 class HybridRetriever:
@@ -110,6 +116,9 @@ class HybridRetriever:
         self.model = self._load_model()
         self.candidates = self._load_candidates()
         self.candidate_embeddings = self._encode_candidates()
+        self.dcn_cfg = None
+        self.dcn_preprocessing = None
+        self.dcn_model = None
 
     def _resolve_device(self, device: str) -> torch.device:
         if device == "auto":
@@ -210,13 +219,23 @@ class HybridRetriever:
         recalled = self.candidates.iloc[top_idx].copy()
         recalled["retrieval_similarity"] = sims[top_idx]
 
+        recalled["strategy_score"] = recalled[score_col].astype(float)
         recalled["sim_norm"] = minmax_norm(recalled["retrieval_similarity"].astype(float))
-        recalled["score_norm"] = minmax_norm(recalled[score_col].astype(float))
+        recalled["score_norm"] = minmax_norm(recalled["strategy_score"].astype(float))
         recalled["fusion_score"] = (
-            request.alpha * recalled["sim_norm"] + request.beta * recalled["score_norm"]
+                request.alpha * recalled["sim_norm"] + request.beta * recalled["score_norm"]
         )
 
-        reranked = recalled.sort_values("fusion_score", ascending=False).copy()
+        if request.use_dcn_reranker:
+            if self.dcn_model is None or getattr(self, "loaded_dcn_experiment", None) != request.dcn_experiment:
+                self._load_dcn_reranker(request.dcn_experiment)
+                self.loaded_dcn_experiment = request.dcn_experiment
+
+            X = self._prepare_dcn_feature_matrix(recalled)
+            recalled["dcn_prob"] = self._predict_dcn_probs(X)
+            reranked = recalled.sort_values("dcn_prob", ascending=False).copy()
+        else:
+            reranked = recalled.sort_values("fusion_score", ascending=False).copy()
 
         if request.dedupe_by_address:
             reranked = dedupe_results_by_address(
@@ -256,8 +275,10 @@ class HybridRetriever:
             "top_strategy",
             "top_strategy_score",
             score_col,
+            "strategy_score",
             "retrieval_similarity",
             "fusion_score",
+            "dcn_prob",
             "explanation",
         ]
         ordered_cols = [c for c in preferred_cols if c in reranked.columns] + [
@@ -268,6 +289,97 @@ class HybridRetriever:
     def retrieve_as_dicts(self, request: RetrievalRequest) -> list[dict[str, Any]]:
         df = self.retrieve(request)
         return df.to_dict(orient="records")
+
+    def _load_dcn_reranker(self, experiment: str) -> None:
+        dcn_cfg = load_model_config(MODEL_CONFIG_PATH, experiment)
+        dcn_model_dir = ROOT / dcn_cfg["output"]["model_dir"]
+
+        preprocessing_path = dcn_model_dir / "preprocessing.json"
+        model_path = dcn_model_dir / "model.pt"
+
+        with preprocessing_path.open("r", encoding="utf-8") as f:
+            preprocessing = json.load(f)
+
+        model = DCNReranker(
+            input_dim=int(preprocessing["input_dim"]),
+            cross_layers=int(dcn_cfg["model"]["cross_layers"]),
+            deep_hidden_dims=list(dcn_cfg["model"]["deep_hidden_dims"]),
+            dropout=float(dcn_cfg["model"]["dropout"]),
+        )
+
+        state_dict = torch.load(model_path, map_location="cpu", weights_only=True)
+        model.load_state_dict(state_dict)
+        model.to(self.device)
+        model.eval()
+
+        self.dcn_cfg = dcn_cfg
+        self.dcn_preprocessing = preprocessing
+        self.dcn_model = model
+
+    def _prepare_dcn_feature_matrix(self, df: pd.DataFrame) -> np.ndarray:
+        work = df.copy()
+        preprocessing = self.dcn_preprocessing
+
+        numeric_cols = list(preprocessing["numeric_feature_cols"])
+        categorical_cols = list(preprocessing["categorical_feature_cols"])
+        binary_cols = list(preprocessing["binary_feature_cols"])
+        category_levels = preprocessing["category_levels"]
+
+        for col in numeric_cols:
+            if col not in work.columns:
+                work[col] = 0.0
+        numeric_df = work[numeric_cols].copy().fillna(0.0).astype(float)
+
+        scaler = StandardScaler()
+        scaler.mean_ = np.array(preprocessing["scaler_mean"], dtype=np.float64)
+        scaler.scale_ = np.array(preprocessing["scaler_scale"], dtype=np.float64)
+        scaler.var_ = scaler.scale_ ** 2
+        scaler.n_features_in_ = len(numeric_cols)
+
+        numeric_arr = scaler.transform(numeric_df.to_numpy())
+
+        for col in binary_cols:
+            if col not in work.columns:
+                work[col] = 0
+        binary_arr = work[binary_cols].copy().fillna(0).astype(float).to_numpy()
+
+        cat_arrays = []
+        for col in categorical_cols:
+            if col not in work.columns:
+                work[col] = "unknown"
+
+            values = work[col].fillna("unknown").astype(str)
+            levels = category_levels[col]
+            one_hot = np.zeros((len(work), len(levels)), dtype=np.float32)
+            level_to_idx = {level: i for i, level in enumerate(levels)}
+
+            for row_idx, val in enumerate(values):
+                if val in level_to_idx:
+                    one_hot[row_idx, level_to_idx[val]] = 1.0
+
+            cat_arrays.append(one_hot)
+
+        parts = [numeric_arr, binary_arr]
+        if cat_arrays:
+            parts.extend(cat_arrays)
+
+        return np.concatenate(parts, axis=1).astype(np.float32)
+
+    @torch.no_grad()
+    def _predict_dcn_probs(self, X: np.ndarray, batch_size: int = 512) -> np.ndarray:
+        outputs = []
+
+        for start in range(0, len(X), batch_size):
+            batch = torch.tensor(
+                X[start:start + batch_size],
+                dtype=torch.float32,
+                device=self.device,
+            )
+            logits = self.dcn_model(batch)
+            probs = torch.sigmoid(logits)
+            outputs.append(probs.cpu().numpy())
+
+        return np.concatenate(outputs)
 
 
 def dedupe_results_by_address(
@@ -318,6 +430,8 @@ def main() -> None:
         dedupe_by_address=not args.no_dedupe,
         attach_explanations=args.with_explanations,
         explanation_model=args.explanation_model,
+        use_dcn_reranker=args.use_dcn_reranker,
+        dcn_experiment=args.dcn_experiment,
     )
     results = retriever.retrieve(request)
 
