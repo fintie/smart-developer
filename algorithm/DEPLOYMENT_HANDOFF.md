@@ -54,7 +54,7 @@ This removes the Ollama dependency from inference.
 
 ## Required Artifacts
 ### Required for inference
-These files MUST exist locally on the deployment machine:
+These all can be found in the **shared Google Drive**. They MUST exist locally on the deployment machine:
 
 **Data**: `data/processed/retrieval/candidate_sites.parquet`
 
