@@ -63,3 +63,7 @@ frontend/.vite/
 .coverage
 .pytest_cache/
 htmlcov/
+
+# Rust
+rust_data_loaders/nsw_addressing_downloader/Cargo.lock
+rust_data_loaders/nsw_addressing_downloader/target
