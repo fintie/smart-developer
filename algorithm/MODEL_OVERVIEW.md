@@ -121,7 +121,7 @@ $$
 Higher similarity means stronger retrieval relevance using the fact that
 
 $$
-\langle\mathbf{q},\mathbf{c}\rangle=\|\mathbf{q}\|_2\|\mathbf{c}\|_2\cos{\theta},
+\langle\mathbf{q},\mathbf{c}\rangle=\lVert\mathbf{q}\rVert_2\lVert\mathbf{c}\rVert_2\cos{\theta},
 $$
 
 where $\theta$ is the angle between vector $\mathbf{q}$ and $\mathbf{c}$.
