@@ -17,6 +17,8 @@ def main() -> None:
     parser.add_argument("--no-dcn-reranker", action="store_true")
     parser.add_argument("--no-explanations", action="store_true")
     parser.add_argument("--no-dedupe", action="store_true")
+    parser.add_argument("--locality", help="Optional locality/suburb text filter against address")
+    parser.add_argument("--address-contains", help="Optional address text filter")
     parser.add_argument("--audience", default="developer")
     parser.add_argument("--title", default="Smart Developer Site Recommendation Report")
     parser.add_argument("--output", help="Optional output markdown path, e.g. reports/apartment_report.md")
@@ -38,6 +40,8 @@ def main() -> None:
         use_dcn_reranker=not args.no_dcn_reranker,
         reranking_model=args.dcn_experiment,
         dedupe_by_address=not args.no_dedupe,
+        locality=args.locality,
+        address_contains=args.address_contains,
     )
 
     response = predictor.predict(request)

@@ -23,6 +23,8 @@ class PredictionRequest:
     alpha: float = 0.5
     beta: float = 0.5
     dedupe_by_address: bool = True
+    locality: str | None = None
+    address_contains: str | None = None
     explanation_model: str = DEFAULT_EXPLANATION_MODEL
 
 
@@ -65,6 +67,8 @@ class SmartDeveloperPredictor:
             alpha=request.alpha,
             beta=request.beta,
             dedupe_by_address=request.dedupe_by_address,
+            locality=request.locality,
+            address_contains=request.address_contains,
             attach_explanations=request.with_explanations,
             explanation_model=request.explanation_model,
             use_dcn_reranker=request.use_dcn_reranker,
@@ -85,6 +89,10 @@ class SmartDeveloperPredictor:
                     item[k] = v.item()
                 else:
                     item[k] = v
+
+            if "base_site_address" not in item or item.get("base_site_address") is None:
+                item["base_site_address"] = item.get("address")
+
             cleaned.append(item)
 
         return cleaned
@@ -115,6 +123,8 @@ class SmartDeveloperPredictor:
             alpha=float(payload.get("alpha", 0.5)),
             beta=float(payload.get("beta", 0.5)),
             dedupe_by_address=bool(payload.get("dedupe_by_address", True)),
+            locality=payload.get("locality"),
+            address_contains=payload.get("address_contains"),
             explanation_model=str(
                 payload.get("explanation_model", self.default_explanation_model)
             ),
@@ -144,6 +154,8 @@ def retrieve_sites(
     alpha: float = 0.5,
     beta: float = 0.5,
     dedupe_by_address: bool = True,
+    locality: str | None = None,
+    address_contains: str | None = None,
     explanation_model: str = DEFAULT_EXPLANATION_MODEL,
 ) -> dict[str, Any]:
     """
@@ -162,6 +174,8 @@ def retrieve_sites(
         alpha=alpha,
         beta=beta,
         dedupe_by_address=dedupe_by_address,
+        locality=locality,
+        address_contains=address_contains,
         explanation_model=explanation_model,
     )
     return predictor.predict(request)

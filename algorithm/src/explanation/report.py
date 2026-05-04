@@ -114,15 +114,17 @@ def _site_strengths(row: pd.Series, strategy: str) -> list[str]:
 def _make_markdown_table(df: pd.DataFrame, strategy: str, max_rows: int = 10) -> str:
     score_col = _score_col(strategy)
 
+    site_col = "base_site_address" if "base_site_address" in df.columns else "address"
+
     cols = [
-        "address",
+        site_col,
         "primary_zoning_code",
         "lot_size_band",
         "station_distance_band",
         "constraint_severity_band",
         score_col,
-        #"dcn_prob",
     ]
+
     cols = [c for c in cols if c in df.columns]
 
     if not cols:
@@ -131,14 +133,14 @@ def _make_markdown_table(df: pd.DataFrame, strategy: str, max_rows: int = 10) ->
     view = df[cols].head(max_rows).copy()
 
     rename_map = {
-        "address": "Address",
+        site_col: "Site",
         "primary_zoning_code": "Zoning",
         "lot_size_band": "Lot Band",
         "station_distance_band": "Station Access",
         "constraint_severity_band": "Constraint",
         score_col: "Strategy Score",
-        #"dcn_prob": "DCN Score",
     }
+
     view = view.rename(columns=rename_map)
 
     for col in ["Strategy Score", "DCN Score"]:
@@ -169,8 +171,9 @@ def _executive_summary(results: pd.DataFrame, strategy: str, query_text: str) ->
     if mean_score is not None:
         summary.append(f"The average strategy score across the shortlist is **{_fmt_float(mean_score, 1)}**.")
 
-    if pd.notna(top.get("address")):
-        summary.append(f"The top-ranked candidate is **{top.get('address')}**.")
+    top_site = top.get("base_site_address", top.get("address"))
+    if pd.notna(top_site):
+        summary.append(f"The top-ranked candidate site is **{top_site}**.")
 
     return " ".join(summary)
 
@@ -231,9 +234,16 @@ def build_site_report(
     else:
         for idx, row in results.iterrows():
             rank = idx + 1
-            address = row.get("address", "Unknown address")
 
-            lines.append(f"### {rank}. {address}")
+            site_address = row.get("base_site_address", row.get("address", "Unknown site"))
+            source_address = row.get("address", None)
+
+            lines.append(f"### {rank}. {site_address}")
+
+            if source_address and pd.notna(source_address) and source_address != site_address:
+                lines.append("")
+                lines.append(f"_Source address example: {source_address}_")
+
             lines.append("")
 
             lines.append("**Key strengths:**")

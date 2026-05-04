@@ -54,17 +54,49 @@ def score_col_for_strategy(strategy: str) -> str:
     return f"{strategy}_score"
 
 
-def normalize_base_address(address: str) -> str:
-    if not isinstance(address, str):
+def normalise_base_site_address(address: object) -> str:
+    """
+    Convert unit-level address into a base-site address.
+
+    Examples:
+        623/21-37 WAITARA AVENUE WAITARA
+        -> 21-37 WAITARA AVENUE WAITARA
+
+        1703/41-45 WAITARA AVENUE WAITARA
+        -> 41-45 WAITARA AVENUE WAITARA
+
+        UNIT 5 10 GEORGE STREET SYDNEY
+        -> 10 GEORGE STREET SYDNEY
+    """
+    if address is None or pd.isna(address):
         return ""
 
-    s = address.strip().upper()
+    text = str(address).upper().strip()
+    text = re.sub(r"\s+", " ", text)
 
-    # remove prefix of unit/level/strata in front，e.g. 909/3 XXX -> 3 XXX
-    s = re.sub(r"^\s*[^/\s]+/\s*", "", s)
-    # Compress extra spaces
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
+    # Remove common unit prefixes.
+    text = re.sub(
+        r"^(UNIT|U|SHOP|SUITE|APT|APARTMENT|FLAT|LEVEL|LVL)\s+[A-Z0-9-]+\s+",
+        "",
+        text,
+    )
+
+    # Remove numeric/alphanumeric unit before slash:
+    # 623/21-37 STREET -> 21-37 STREET
+    # A12/10 STREET -> 10 STREET
+    text = re.sub(r"^[A-Z0-9-]+/", "", text)
+
+    # Remove leading unit-like token before a street number range:
+    # 1703 41-45 STREET -> 41-45 STREET
+    text = re.sub(r"^[A-Z0-9-]+\s+(?=\d+\s*-\s*\d+\b)", "", text)
+
+    # Normalise number ranges.
+    text = re.sub(r"\s*-\s*", "-", text)
+
+    # Normalise spaces again.
+    text = re.sub(r"\s+", " ", text).strip()
+
+    return text
 
 
 def minmax_norm(values: pd.Series) -> pd.Series:
@@ -344,6 +376,7 @@ class HybridRetriever:
         preferred_cols = [
             "RID",
             "address",
+            "base_site_address",
             "strategy",
             "query_text",
             "primary_zoning_code",
@@ -463,25 +496,30 @@ class HybridRetriever:
         return np.concatenate(outputs)
 
 
+
 def dedupe_results_by_address(
     df: pd.DataFrame,
     address_col: str = "address",
+    base_address_col: str = "base_site_address",
 ) -> pd.DataFrame:
+    """
+    Deduplicate retrieval results by normalized base-site address.
+
+    Keeps the first row per base site, assuming df is already sorted by rank score.
+    """
     if address_col not in df.columns:
         return df
 
     out = df.copy()
-    out[address_col] = out[address_col].fillna("").astype(str).str.strip()
-    out["_dedupe_key"] = out[address_col].apply(normalize_base_address)
+    out[base_address_col] = out[address_col].apply(normalise_base_site_address)
 
-    missing_mask = out["_dedupe_key"].eq("")
-    if missing_mask.any():
-        out.loc[missing_mask, "_dedupe_key"] = (
-            "__missing_address__" + out.loc[missing_mask].index.astype(str)
-        )
+    before = len(out)
+    out = out.drop_duplicates(subset=[base_address_col], keep="first").copy()
+    after = len(out)
 
-    out = out.drop_duplicates(subset=["_dedupe_key"], keep="first").copy()
-    out = out.drop(columns=["_dedupe_key"])
+    # Optional debug field.
+    out["dedupe_removed_count"] = before - after
+
     return out
 
 

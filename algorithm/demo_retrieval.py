@@ -11,6 +11,7 @@ def compact_columns(strategy: str) -> list[str]:
     return [
         "RID",
         "address",
+        "base_site_address",
         "primary_zoning_code",
         "lot_size_band",
         "constraint_severity_band",
