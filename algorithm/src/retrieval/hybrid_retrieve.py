@@ -92,6 +92,10 @@ class RetrievalRequest:
     use_dcn_reranker: bool = False
     dcn_experiment: str = "dcn_reranker_v1"
 
+    # location filters
+    locality: str | None = None
+    address_contains: str | None = None
+
 
 class HybridRetriever:
     def __init__(
@@ -220,6 +224,37 @@ class HybridRetriever:
 
         return 0.0
 
+    def _apply_location_filters(
+        self,
+        df: pd.DataFrame,
+        request: RetrievalRequest,
+    ) -> pd.DataFrame:
+        filtered = df.copy()
+
+        if request.address_contains:
+            pattern = str(request.address_contains).strip()
+            if pattern:
+                filtered = filtered[
+                    filtered["address"].fillna("").astype(str).str.contains(
+                        pattern,
+                        case=False,
+                        regex=False,
+                    )
+                ].copy()
+
+        if request.locality:
+            locality = str(request.locality).strip()
+            if locality:
+                filtered = filtered[
+                    filtered["address"].fillna("").astype(str).str.contains(
+                        locality,
+                        case=False,
+                        regex=False,
+                    )
+                ].copy()
+
+        return filtered
+
     def retrieve(self, request: RetrievalRequest) -> pd.DataFrame:
         strategy = request.strategy
         score_col = score_col_for_strategy(strategy)
@@ -236,6 +271,18 @@ class HybridRetriever:
         recalled = self.candidates.iloc[top_idx].copy()
         recalled["retrieval_similarity"] = sims[top_idx]
 
+        unfiltered_recalled = recalled.copy()
+        recalled = self._apply_location_filters(recalled, request)
+
+        if len(recalled) == 0:
+            print(
+                "[Location filter warning] No candidates remained after filtering. "
+                "Falling back to unfiltered recall pool."
+            )
+            recalled = unfiltered_recalled
+        elif len(recalled) < request.top_k:
+            print(f"[Location filter warning] Only {len(recalled)} candidates remained after filtering.")
+
         recalled["strategy_score"] = recalled[score_col].astype(float)
         recalled["sim_norm"] = minmax_norm(recalled["retrieval_similarity"].astype(float))
         recalled["score_norm"] = minmax_norm(recalled["strategy_score"].astype(float))
@@ -246,12 +293,12 @@ class HybridRetriever:
         # Strategy-specific soft serving boost.
         # This is not a hard filter. It only nudges ranking when a feature is desirable
         # but not mandatory for the selected strategy.
-        recalled["access_boost"] = recalled.apply(
+        recalled["serving_boost"] = recalled.apply(
             lambda row: self._access_preference_boost(row, strategy),
             axis=1,
         )
 
-        recalled["fusion_rank_score"] = recalled["fusion_score"] + recalled["access_boost"]
+        recalled["fusion_rank_score"] = recalled["fusion_score"] + recalled["serving_boost"]
 
         if request.use_dcn_reranker:
             if self.dcn_model is None or getattr(self, "loaded_dcn_experiment", None) != request.dcn_experiment:
@@ -263,7 +310,7 @@ class HybridRetriever:
 
             # DCN is the main ranker, but we still apply a small strategy-specific
             # serving boost for known soft preferences.
-            recalled["dcn_rank_score"] = recalled["dcn_prob"] + recalled["access_boost"]
+            recalled["dcn_rank_score"] = recalled["dcn_prob"] + recalled["serving_boost"]
             reranked = recalled.sort_values("dcn_rank_score", ascending=False).copy()
         else:
             reranked = recalled.sort_values("fusion_rank_score", ascending=False).copy()
@@ -309,7 +356,7 @@ class HybridRetriever:
             "strategy_score",
             "retrieval_similarity",
             "fusion_score",
-            "access_boost",
+            "serving_boost",
             "fusion_rank_score",
             "dcn_prob",
             "dcn_rank_score",
@@ -445,6 +492,8 @@ def main() -> None:
     parser.add_argument("--query-text", required=True)
     parser.add_argument("--top-k", type=int, default=20)
     parser.add_argument("--recall-k", type=int, default=200)
+    parser.add_argument("--locality", help="Optional locality/suburb text filter against address")
+    parser.add_argument("--address-contains", help="Optional address text filter")
     parser.add_argument("--alpha", type=float, default=0.5)
     parser.add_argument("--beta", type=float, default=0.5)
     parser.add_argument("--no-dedupe", action="store_true")
@@ -466,6 +515,8 @@ def main() -> None:
         explanation_model=args.explanation_model,
         use_dcn_reranker=args.use_dcn_reranker,
         dcn_experiment=args.dcn_experiment,
+        locality=args.locality,
+        address_contains=args.address_contains,
     )
     results = retriever.retrieve(request)
 

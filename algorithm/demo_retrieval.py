@@ -19,7 +19,7 @@ def compact_columns(strategy: str) -> list[str]:
         score_col,
         "retrieval_similarity",
         "fusion_score",
-        "access_boost",
+        "serving_boost",
         "dcn_prob",
         "dcn_rank_score",
         "explanation",
@@ -70,6 +70,8 @@ def main() -> None:
     parser.add_argument("--no-dcn-reranker", action="store_true", help="Disable DCN reranker and use fusion-only reranking")
     parser.add_argument("--dcn-experiment", default="dcn_reranker_v1",
                         help="DCN reranker experiment name from algorithm/configs/model.yaml")
+    parser.add_argument("--locality", help="Optional locality/suburb text filter against address")
+    parser.add_argument("--address-contains", help="Optional address text filter")
     parser.add_argument("--no-dedupe", action="store_true")
     parser.add_argument("--use-query-planner", action="store_true",
                         help="Use lightweight query planner to rewrite query and detect strategy conflicts")
@@ -128,6 +130,8 @@ def main() -> None:
         attach_explanations=args.with_explanations,
         use_dcn_reranker=use_dcn_reranker,
         dcn_experiment=args.dcn_experiment,
+        locality=args.locality,
+        address_contains=args.address_contains,
     )
 
     results = retriever.retrieve(request)
