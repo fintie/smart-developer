@@ -119,9 +119,11 @@ s(\mathbf{q}, \mathbf{c}) = \langle\mathbf{q},\mathbf{c}\rangle
 $$
 
 Higher similarity means stronger retrieval relevance using the fact that
+
 $$
 \langle\mathbf{q},\mathbf{c}\rangle=\|\mathbf{q}\|_2\|\mathbf{c}\|_2\cos{\theta},
 $$
+
 where $\theta$ is the angle between vector $\mathbf{q}$ and $\mathbf{c}$.
 
 ## 5. Two-Tower Training Variants
