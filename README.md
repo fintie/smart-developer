@@ -437,6 +437,12 @@ python -m algorithm.demo_report \
   --output algorithm/artifacts/reports/waitara_low_rise_apartment.md
 ```
 
+Or edit variables in `scripts/run_demo_report.sh` and run:
+```bash
+chmod +x ./scripts/run_demo_report.sh
+./scripts/run_demo_report.sh
+```
+
 The report includes:
 
 - executive summary
