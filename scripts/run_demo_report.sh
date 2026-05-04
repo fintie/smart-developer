@@ -2,61 +2,57 @@
 set -euo pipefail
 
 # =========================
-# Smart Developer Demo Retrieval
+# Smart Developer Demo Report
 # Edit these fields only
 # =========================
 
-EXPERIMENT="two_tower_v1"
-DCN_EXPERIMENT="dcn_reranker_v1"
-
-STRATEGY="single_dwelling_rebuild"
-QUERY_TEXT="I want a site for detached house redevelopment on standard residential land, with low planning constraints and a suitable lot size."
+STRATEGY="low_rise_apartment"
+QUERY_TEXT="I want a site for low-rise apartment redevelopment near a train station, with high development zoning, a large site, and limited planning constraints."
 
 TOP_K=5
 RECALL_K=1000
-ALPHA=0.5
-BETA=0.5
 
-WITH_EXPLANATIONS=true
+RETRIEVAL_EXPERIMENT="two_tower_v1"
+DCN_EXPERIMENT="dcn_reranker_v1"
+
 USE_DCN_RERANKER=true
-USE_QUERY_PLANNER=true
+WITH_EXPLANATIONS=true
 NO_DEDUPE=false
 
 # Optional location filters.
 # Leave empty string "" to disable.
-LOCALITY=""
+LOCALITY="WAITARA"
 ADDRESS_CONTAINS=""
 
-# Example:
-# LOCALITY="WAITARA"
-# ADDRESS_CONTAINS="ORARA"
+# Report options.
+AUDIENCE="developer"
+TITLE="Smart Developer Site Recommendation Report"
+
+# Leave empty string "" to print to terminal instead of saving.
+OUTPUT_PATH="algorithm/artifacts/reports/demo_report.md"
 
 # =========================
 # Build command
 # =========================
 
 CMD=(
-  python -m algorithm.demo_retrieval
-  --experiment "$EXPERIMENT"
+  python -m algorithm.demo_report
   --strategy "$STRATEGY"
   --query-text "$QUERY_TEXT"
   --top-k "$TOP_K"
   --recall-k "$RECALL_K"
-  --alpha "$ALPHA"
-  --beta "$BETA"
+  --retrieval-experiment "$RETRIEVAL_EXPERIMENT"
   --dcn-experiment "$DCN_EXPERIMENT"
+  --audience "$AUDIENCE"
+  --title "$TITLE"
 )
-
-if [ "$WITH_EXPLANATIONS" = true ]; then
-  CMD+=(--with-explanations)
-fi
 
 if [ "$USE_DCN_RERANKER" = false ]; then
   CMD+=(--no-dcn-reranker)
 fi
 
-if [ "$USE_QUERY_PLANNER" = true ]; then
-  CMD+=(--use-query-planner)
+if [ "$WITH_EXPLANATIONS" = false ]; then
+  CMD+=(--no-explanations)
 fi
 
 if [ "$NO_DEDUPE" = true ]; then
@@ -71,19 +67,22 @@ if [ -n "$ADDRESS_CONTAINS" ]; then
   CMD+=(--address-contains "$ADDRESS_CONTAINS")
 fi
 
-echo "Running demo retrieval..."
-echo "Experiment:         $EXPERIMENT"
+if [ -n "$OUTPUT_PATH" ]; then
+  CMD+=(--output "$OUTPUT_PATH")
+fi
+
+echo "Running demo report..."
 echo "Strategy:           $STRATEGY"
 echo "Top K:              $TOP_K"
 echo "Recall K:           $RECALL_K"
-echo "Alpha/Beta:         $ALPHA / $BETA"
-echo "With explanations:  $WITH_EXPLANATIONS"
+echo "Retrieval model:    $RETRIEVAL_EXPERIMENT"
 echo "Use DCN reranker:   $USE_DCN_RERANKER"
 echo "DCN experiment:     $DCN_EXPERIMENT"
-echo "Use query planner:  $USE_QUERY_PLANNER"
+echo "With explanations:  $WITH_EXPLANATIONS"
 echo "Dedupe disabled:    $NO_DEDUPE"
 echo "Locality filter:    ${LOCALITY:-none}"
 echo "Address contains:   ${ADDRESS_CONTAINS:-none}"
+echo "Output path:        ${OUTPUT_PATH:-terminal}"
 echo
 
 "${CMD[@]}"
