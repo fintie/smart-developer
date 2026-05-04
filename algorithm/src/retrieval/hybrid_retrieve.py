@@ -14,7 +14,6 @@ from transformers import AutoTokenizer
 from sklearn.preprocessing import StandardScaler
 
 from algorithm.src.models.dcn_reranker import DCNReranker
-
 from algorithm.src.models.two_tower_model import TwoTowerModel
 from algorithm.src.explanation.evidence import build_explanation_payload
 from algorithm.src.explanation.pipeline import explain_row
@@ -119,6 +118,7 @@ class HybridRetriever:
         self.dcn_cfg = None
         self.dcn_preprocessing = None
         self.dcn_model = None
+        self.loaded_dcn_experiment = None
 
     def _resolve_device(self, device: str) -> torch.device:
         if device == "auto":
@@ -203,6 +203,23 @@ class HybridRetriever:
             "explanation",
         ]
 
+    @staticmethod
+    def _access_preference_boost(row: pd.Series, strategy: str) -> float:
+        band = str(row.get("station_distance_band", "unknown"))
+
+        if strategy == "single_dwelling_rebuild":
+            mapping = {
+                "within_800m": 0.05,
+                "800m_2km": 0.04,
+                "2km_5km": 0.025,
+                "5km_10km": 0.01,
+                "over_10km": 0.0,
+                "unknown": 0.0,
+            }
+            return mapping.get(band, 0.0)
+
+        return 0.0
+
     def retrieve(self, request: RetrievalRequest) -> pd.DataFrame:
         strategy = request.strategy
         score_col = score_col_for_strategy(strategy)
@@ -226,6 +243,16 @@ class HybridRetriever:
                 request.alpha * recalled["sim_norm"] + request.beta * recalled["score_norm"]
         )
 
+        # Strategy-specific soft serving boost.
+        # This is not a hard filter. It only nudges ranking when a feature is desirable
+        # but not mandatory for the selected strategy.
+        recalled["access_boost"] = recalled.apply(
+            lambda row: self._access_preference_boost(row, strategy),
+            axis=1,
+        )
+
+        recalled["fusion_rank_score"] = recalled["fusion_score"] + recalled["access_boost"]
+
         if request.use_dcn_reranker:
             if self.dcn_model is None or getattr(self, "loaded_dcn_experiment", None) != request.dcn_experiment:
                 self._load_dcn_reranker(request.dcn_experiment)
@@ -233,9 +260,13 @@ class HybridRetriever:
 
             X = self._prepare_dcn_feature_matrix(recalled)
             recalled["dcn_prob"] = self._predict_dcn_probs(X)
-            reranked = recalled.sort_values("dcn_prob", ascending=False).copy()
+
+            # DCN is the main ranker, but we still apply a small strategy-specific
+            # serving boost for known soft preferences.
+            recalled["dcn_rank_score"] = recalled["dcn_prob"] + recalled["access_boost"]
+            reranked = recalled.sort_values("dcn_rank_score", ascending=False).copy()
         else:
-            reranked = recalled.sort_values("fusion_score", ascending=False).copy()
+            reranked = recalled.sort_values("fusion_rank_score", ascending=False).copy()
 
         if request.dedupe_by_address:
             reranked = dedupe_results_by_address(
@@ -278,7 +309,10 @@ class HybridRetriever:
             "strategy_score",
             "retrieval_similarity",
             "fusion_score",
+            "access_boost",
+            "fusion_rank_score",
             "dcn_prob",
+            "dcn_rank_score",
             "explanation",
         ]
         ordered_cols = [c for c in preferred_cols if c in reranked.columns] + [

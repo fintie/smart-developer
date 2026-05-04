@@ -104,21 +104,25 @@ A compact site text, for example:
 The model maps both query and candidate into a shared embedding space:
 
 $$
-q = f_{\theta_q}(x_q),\quad c = f_{\theta_c}(x_c)
+\mathbf{q} = f_{\theta_q}(x_q),\quad \mathbf{c} = f_{\theta_c}(x_c)
 $$
 
 where:
 - $x_q$ is the query text
 - $x_c$ is the candidate text
-- $q$ and $c$ are dense vectors
+- $\mathbf{q}$ and $\mathbf{c}$ are dense vectors
 
-Similarity is computed using the dot product of normalised embeddings:
+Similarity is computed using the inner product of normalised embeddings:
 
 $$
-s(q, c) = q^\top c
+s(\mathbf{q}, \mathbf{c}) = \langle\mathbf{q},\mathbf{c}\rangle
 $$
 
-Higher similarity means stronger retrieval relevance.
+Higher similarity means stronger retrieval relevance using the fact that
+$$
+\langle\mathbf{q},\mathbf{c}\rangle=\|\mathbf{q}\|_2\|\mathbf{c}\|_2\cos{\theta},
+$$
+where $\theta$ is the angle between vector $\mathbf{q}$ and $\mathbf{c}$.
 
 ## 5. Two-Tower Training Variants
 
@@ -133,12 +137,12 @@ The second version introduces explicit hard negatives using triplet-style traini
 A simplified triplet loss is:
 
 $$
-L = \max(0, m - s(q, c^+) + s(q, c^-))
+L = \max(0, m - s(\mathbf{q}, \mathbf{c}^+) + s(\mathbf{q}, \mathbf{c}^-))
 $$
 
 where:
-- $c^+$ is a positive candidate
-- $c^-$ is a negative candidate
+- $\mathbf{c}^+$ is a positive candidate
+- $\mathbf{c}^-$ is a negative candidate
 - $m$ is the margin
 
 This version is better at sharpening boundaries between similar strategies, but can be less balanced overall.
@@ -179,12 +183,12 @@ The DCN reranker consumes pair-level features such as:
 A simplified cross layer is:
 
 $$
-x_{l+1} = x_0 (w_l^\top x_l) + b_l + x_l
+\mathbf{x}_{l+1} = \mathbf{x}_0 (\mathbf{w}_l^\top \mathbf{x}_l) + \mathbf{b}_l + \mathbf{x}_l
 $$
 
 where:
-- $x_0$ is the original input
-- $x_l$ is the current layer representation
+- $\mathbf{x}_0$ is the original input
+- $\mathbf{x}_l$ is the current layer representation
 
 This allows the model to explicitly learn useful feature crosses rather than relying only on implicit MLP interactions.
 
@@ -192,12 +196,12 @@ This allows the model to explicitly learn useful feature crosses rather than rel
 The reranker outputs a pairwise relevance logit:
 
 $$
-r(q, c) = g_{\phi}(z_{q,c})
+r(\mathbf{q}, \mathbf{c}) = g_{\phi}(\mathbf{z}_{q,c})
 $$
 
 where:
-- $z_{q,c}$ is the structured feature vector for the query-candidate pair
-- $r(q, c)$ is the reranking score
+- $\mathbf{z}_{q,c}$ is the structured feature vector for the query-candidate pair
+- $r(\mathbf{q},\mathbf{c})$ is the reranking score
 
 The reranker is trained as a binary relevance model using weak supervision derived from strategy scores.
 
