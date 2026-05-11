@@ -1,4 +1,7 @@
 from __future__ import annotations
+import uuid
+import time
+from datetime import datetime, timezone
 from dataclasses import asdict, dataclass
 from typing import Any
 import pandas as pd
@@ -98,14 +101,54 @@ class SmartDeveloperPredictor:
         return cleaned
 
     def predict(self, request: PredictionRequest) -> dict[str, Any]:
+        start_time = time.perf_counter()
+        request_id = f"req_{uuid.uuid4().hex[:12]}"
+        created_at = datetime.now(timezone.utc).isoformat()
+
         retriever = self._get_retriever(request.retrieval_model)
-        retrieval_request = self._build_request(request)
-        result_df = retriever.retrieve(retrieval_request)
+
+        retrieval_request = RetrievalRequest(
+            strategy=request.strategy,
+            query_text=request.query_text,
+            top_k=request.top_k,
+            recall_k=request.recall_k,
+            alpha=request.alpha,
+            beta=request.beta,
+            dedupe_by_address=request.dedupe_by_address,
+            attach_explanations=request.with_explanations,
+            explanation_model=request.explanation_model,
+            use_dcn_reranker=request.use_dcn_reranker,
+            dcn_experiment=request.reranking_model,
+            locality=request.locality,
+            address_contains=request.address_contains,
+        )
+
+        results_df = retriever.retrieve(retrieval_request)
+        records = self._clean_records(results_df)
+
+        latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
         return {
+            "request_id": request_id,
+            "created_at": created_at,
             "request": asdict(request),
-            "result_count": int(len(result_df)),
-            "results": self._clean_records(result_df),
+            "metadata": {
+                "strategy": request.strategy,
+                "query_text": request.query_text,
+                "top_k": request.top_k,
+                "recall_k": request.recall_k,
+                "retrieval_model": request.retrieval_model,
+                "reranking_model": request.reranking_model,
+                "use_dcn_reranker": request.use_dcn_reranker,
+                "with_explanations": request.with_explanations,
+                "dedupe_by_address": request.dedupe_by_address,
+                "locality": request.locality,
+                "address_contains": request.address_contains,
+                "latency_ms": latency_ms,
+                "result_count": len(records),
+            },
+            "result_count": len(records),
+            "results": records,
         }
 
     def predict_from_dict(self, payload: dict[str, Any]) -> dict[str, Any]:
