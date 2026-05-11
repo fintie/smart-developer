@@ -30,6 +30,7 @@ TITLE="Smart Developer Site Recommendation Report"
 
 # Leave empty string "" to print to terminal instead of saving.
 OUTPUT_PATH="algorithm/artifacts/reports/demo_report.md"
+OUTPUT_PDF_PATH="algorithm/artifacts/reports/demo_report.pdf"
 
 # =========================
 # Build command
@@ -71,6 +72,10 @@ if [ -n "$OUTPUT_PATH" ]; then
   CMD+=(--output "$OUTPUT_PATH")
 fi
 
+if [ -n "$OUTPUT_PDF_PATH" ]; then
+  CMD+=(--output-pdf "$OUTPUT_PDF_PATH")
+fi
+
 echo "Running demo report..."
 echo "Strategy:           $STRATEGY"
 echo "Top K:              $TOP_K"
@@ -83,6 +88,7 @@ echo "Dedupe disabled:    $NO_DEDUPE"
 echo "Locality filter:    ${LOCALITY:-none}"
 echo "Address contains:   ${ADDRESS_CONTAINS:-none}"
 echo "Output path:        ${OUTPUT_PATH:-terminal}"
+echo "Output PDF path:    ${OUTPUT_PDF_PATH:-none}"
 echo
 
 "${CMD[@]}"

@@ -163,23 +163,13 @@ response = retrieve_sites(
     top_k=5,
     recall_k=1000,
     with_explanations=True,
-    retrieval_experiment="two_tower_v1",
+    retrieval_model="two_tower_v1",
     use_dcn_reranker=True,
-    dcn_experiment="dcn_reranker_v1",
+    reranking_model="dcn_reranker_v1",
     locality="WAITARA",          # optional
     address_contains=None,       # optional
 )
 ```
-
-### Important parameter names
-
-Use these current names:
-
-- `retrieval_experiment="two_tower_v1"`
-- `dcn_experiment="dcn_reranker_v1"`
-- `use_dcn_reranker=True`
-
-Do not use older names such as `retrieval_model` or `reranking_model` unless the backend wrapper explicitly maps them.
 
 ### Response shape
 
@@ -367,8 +357,8 @@ Suggested fields:
 - `top_k`
 - `recall_k`
 - `with_explanations`
-- `retrieval_experiment`
-- `dcn_experiment`
+- `retrieval_model`
+- `reranking_model`
 - `use_dcn_reranker`
 - `locality`
 - `address_contains`

@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 from algorithm.src.inference.predictor import PredictionRequest, SmartDeveloperPredictor
 from algorithm.src.explanation.report import ReportConfig, build_site_report
+from algorithm.src.explanation.report_export import export_markdown_report_to_pdf
 
 
 def main() -> None:
@@ -22,6 +23,8 @@ def main() -> None:
     parser.add_argument("--audience", default="developer")
     parser.add_argument("--title", default="Smart Developer Site Recommendation Report")
     parser.add_argument("--output", help="Optional output markdown path, e.g. reports/apartment_report.md")
+    parser.add_argument("--output-pdf",
+                        help="Optional output PDF path, e.g. algorithm/artifacts/reports/demo_report.pdf")
 
     args = parser.parse_args()
 
@@ -67,6 +70,13 @@ def main() -> None:
         print(f"Saved report to: {output_path}")
     else:
         print(report)
+
+    if args.output_pdf:
+        pdf_path = export_markdown_report_to_pdf(
+            markdown_text=report,
+            output_pdf_path=args.output_pdf,
+        )
+        print(f"Saved PDF report to: {pdf_path}")
 
 
 if __name__ == "__main__":

@@ -6,13 +6,6 @@ from torch import nn
 class CrossLayer(nn.Module):
     """
     One cross layer from the Deep & Cross Network family.
-
-    Given x0 and xl:
-        x_{l+1} = x0 * (W xl + b) + xl
-
-    Here W xl is implemented as a scalar per sample:
-        (xl @ w) -> shape [batch, 1]
-    then broadcast-multiplied with x0.
     """
     def __init__(self, input_dim: int) -> None:
         super().__init__()
@@ -60,10 +53,8 @@ class MLPBlock(nn.Module):
 class DCNReranker(nn.Module):
     """
     Deep & Cross Network style reranker.
-
     Input:
         A dense feature vector for each (query, candidate) pair.
-
     Output:
         A single logit for ranking / binary relevance prediction.
     """
