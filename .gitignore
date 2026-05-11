@@ -67,3 +67,6 @@ htmlcov/
 # Rust
 rust_data_loaders/nsw_addressing_downloader/Cargo.lock
 rust_data_loaders/nsw_addressing_downloader/target
+
+algorithm/artifacts/reports/*
+!algorithm/artifacts/reports/.gitkeep
