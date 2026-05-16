@@ -53,12 +53,9 @@ class MLPBlock(nn.Module):
 class DCNReranker(nn.Module):
     """
     Deep & Cross Network style reranker.
-    Input:
-        A dense feature vector for each (query, candidate) pair.
-    Output:
-        A single logit for ranking / binary relevance prediction.
+    Input: A dense feature vector for each (query, candidate) pair.
+    Output: A single logit for ranking / binary relevance prediction.
     """
-
     def __init__(
         self,
         input_dim: int,

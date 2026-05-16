@@ -1,7 +1,5 @@
 from __future__ import annotations
-
 import pandas as pd
-
 from .evidence import build_explanation_payload
 from .local_generator import generate_with_ollama
 

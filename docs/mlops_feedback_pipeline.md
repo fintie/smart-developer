@@ -848,3 +848,26 @@ The recommended near-term focus is:
 ```
 
 This will turn the current Smart Developer algorithm demo into a more realistic product and MLOps pipeline.
+
+## 20. Testing
+```bash
+curl -X POST http://localhost:8001/retrieve-sites \
+  -H "Content-Type: application/json" \
+  -d '{
+    "strategy": "single_dwelling_rebuild",
+    "query_text": "I want a site for detached house redevelopment on standard residential land, with low planning constraints and a suitable lot size.",
+    "top_k": 5,
+    "recall_k": 1000,
+    "with_explanations": false,
+    "user_id": "demo_user",
+    "session_id": "meeting_demo_house",
+    "log_request": true
+  }' | python -m json.tool
+```
+
+```sql
+SELECT request_id, strategy, locality, latency_ms, result_count
+FROM retrieval_requests
+ORDER BY created_at DESC
+LIMIT 5;
+```
