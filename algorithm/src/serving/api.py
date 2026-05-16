@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from algorithm.src.mlops.logger import log_retrieval_response, log_user_feedback
 from algorithm.src.explanation.template_generator import add_template_explanations
+from algorithm.src.mlops.report_jobs import generate_report_from_request_id, get_report_job
 from algorithm.src.inference.predictor import (
     DEFAULT_RERANKING_MODEL,
     DEFAULT_RETRIEVAL_MODEL,
@@ -90,6 +91,17 @@ class FeedbackPayload(BaseModel):
 
     user_id: str | None = None
     session_id: str | None = None
+
+
+class ReportJobPayload(BaseModel):
+    request_id: str
+    explanation_mode: str = "template"
+
+    output_markdown: bool = True
+    output_pdf: bool = True
+
+    audience: str = "developer"
+    title: str = "Smart Developer Site Recommendation Report"
 
 
 class ServiceState:
@@ -255,4 +267,38 @@ def feedback(payload: FeedbackPayload) -> dict[str, Any]:
             "status": "failed",
             "error": str(exc),
             "request_id": payload.request_id,
+        }
+
+
+@app.post("/report-jobs")
+def create_report_job_endpoint(payload: ReportJobPayload) -> dict[str, Any]:
+    try:
+        result = generate_report_from_request_id(
+            request_id=payload.request_id,
+            explanation_mode=payload.explanation_mode,
+            output_markdown=payload.output_markdown,
+            output_pdf=payload.output_pdf,
+            audience=payload.audience,
+            title=payload.title,
+        )
+        return result
+
+    except Exception as exc:
+        return {
+            "status": "failed",
+            "request_id": payload.request_id,
+            "error": str(exc),
+        }
+
+
+@app.get("/report-jobs/{report_id}")
+def get_report_job_endpoint(report_id: str) -> dict[str, Any]:
+    try:
+        return get_report_job(report_id)
+
+    except Exception as exc:
+        return {
+            "status": "failed",
+            "report_id": report_id,
+            "error": str(exc),
         }

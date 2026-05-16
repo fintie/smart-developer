@@ -1,11 +1,13 @@
 from __future__ import annotations
 import uuid
 from typing import Any
+from datetime import datetime, timezone
 from algorithm.src.mlops.db import get_session
 from algorithm.src.mlops.models import (
     RetrievalRequestLog,
     RetrievalResultLog,
     UserFeedbackLog,
+    ReportJobLog
 )
 
 
@@ -143,3 +145,68 @@ def log_user_feedback(
         session.add(row)
 
     return feedback_id
+
+
+def create_report_job(
+    *,
+    request_id: str,
+    explanation_mode: str,
+    report_id: str | None = None,
+) -> str:
+    report_id = report_id or f"report_{uuid.uuid4().hex[:12]}"
+
+    row = ReportJobLog(
+        report_id=report_id,
+        request_id=request_id,
+        status="queued",
+        explanation_mode=explanation_mode,
+    )
+
+    with get_session() as session:
+        session.add(row)
+
+    return report_id
+
+
+def mark_report_job_running(report_id: str) -> None:
+    with get_session() as session:
+        row = session.get(ReportJobLog, report_id)
+        if row is None:
+            raise ValueError(f"Report job not found: {report_id}")
+        row.status = "running"
+
+
+def complete_report_job(
+    *,
+    report_id: str,
+    output_markdown_path: str | None = None,
+    output_pdf_path: str | None = None,
+    latency_ms: float | None = None,
+) -> None:
+    with get_session() as session:
+        row = session.get(ReportJobLog, report_id)
+        if row is None:
+            raise ValueError(f"Report job not found: {report_id}")
+
+        row.status = "ready"
+        row.output_markdown_path = output_markdown_path
+        row.output_pdf_path = output_pdf_path
+        row.latency_ms = latency_ms
+        row.completed_at = datetime.now(timezone.utc)
+
+
+def fail_report_job(
+    *,
+    report_id: str,
+    error_message: str,
+    latency_ms: float | None = None,
+) -> None:
+    with get_session() as session:
+        row = session.get(ReportJobLog, report_id)
+        if row is None:
+            raise ValueError(f"Report job not found: {report_id}")
+
+        row.status = "failed"
+        row.error_message = error_message
+        row.latency_ms = latency_ms
+        row.completed_at = datetime.now(timezone.utc)

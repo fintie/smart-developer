@@ -21,31 +21,22 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS retrieval_requests (
     request_id TEXT PRIMARY KEY,
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
     user_id TEXT,
     session_id TEXT,
-
     strategy TEXT NOT NULL,
     query_text TEXT NOT NULL,
-
     locality TEXT,
     address_contains TEXT,
-
     top_k INTEGER NOT NULL,
     recall_k INTEGER NOT NULL,
-
     retrieval_model TEXT NOT NULL,
     reranking_model TEXT,
-
     use_dcn_reranker BOOLEAN NOT NULL DEFAULT TRUE,
     with_explanations BOOLEAN NOT NULL DEFAULT FALSE,
     dedupe_by_address BOOLEAN NOT NULL DEFAULT TRUE,
-
     latency_ms DOUBLE PRECISION,
     result_count INTEGER,
-
     request_payload JSONB,
     planner_payload JSONB,
     metadata_payload JSONB
@@ -79,33 +70,25 @@ ON retrieval_requests(locality);
 
 CREATE TABLE IF NOT EXISTS retrieval_results (
     id BIGSERIAL PRIMARY KEY,
-
     request_id TEXT NOT NULL
         REFERENCES retrieval_requests(request_id)
         ON DELETE CASCADE,
-
     rid TEXT NOT NULL,
     rank_position INTEGER NOT NULL,
-
     address TEXT,
     base_site_address TEXT,
-
     primary_zoning_code TEXT,
     zoning_band TEXT,
     lot_size_band TEXT,
     constraint_severity_band TEXT,
     station_distance_band TEXT,
-
     strategy_score DOUBLE PRECISION,
     retrieval_similarity DOUBLE PRECISION,
     fusion_score DOUBLE PRECISION,
     dcn_prob DOUBLE PRECISION,
     final_rank_score DOUBLE PRECISION,
-
     result_payload JSONB,
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
     CONSTRAINT uq_retrieval_result_request_rid_rank
         UNIQUE (request_id, rid, rank_position)
 );
@@ -135,19 +118,14 @@ ON retrieval_results(dcn_prob);
 
 CREATE TABLE IF NOT EXISTS user_feedback (
     feedback_id TEXT PRIMARY KEY,
-
     request_id TEXT NOT NULL
         REFERENCES retrieval_requests(request_id)
         ON DELETE CASCADE,
-
     rid TEXT,
     rank_position INTEGER,
-
     event_type TEXT NOT NULL,
     event_value JSONB,
-
     user_note TEXT,
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -173,26 +151,18 @@ ON user_feedback(request_id, rid);
 
 CREATE TABLE IF NOT EXISTS report_jobs (
     report_id TEXT PRIMARY KEY,
-
     request_id TEXT NOT NULL
         REFERENCES retrieval_requests(request_id)
         ON DELETE CASCADE,
-
     status TEXT NOT NULL,
-
     explanation_mode TEXT NOT NULL,
-
     output_markdown_path TEXT,
     output_pdf_path TEXT,
-
     latency_ms DOUBLE PRECISION,
     error_message TEXT,
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMPTZ,
-
     report_payload JSONB,
-
     CONSTRAINT chk_report_jobs_status
         CHECK (status IN ('queued', 'running', 'ready', 'failed', 'cancelled'))
 );
@@ -213,22 +183,15 @@ ON report_jobs(created_at);
 
 CREATE TABLE IF NOT EXISTS model_registry (
     model_version TEXT PRIMARY KEY,
-
     model_type TEXT NOT NULL,
-
     artifact_path TEXT NOT NULL,
     preprocessing_path TEXT,
-
     status TEXT NOT NULL,
-
     metrics JSONB,
     model_card JSONB,
-
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     promoted_at TIMESTAMPTZ,
-
     notes TEXT,
-
     CONSTRAINT chk_model_registry_status
         CHECK (status IN ('candidate', 'staging', 'production', 'archived'))
 );
