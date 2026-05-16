@@ -70,3 +70,23 @@ rust_data_loaders/nsw_addressing_downloader/target
 
 algorithm/artifacts/reports/*
 !algorithm/artifacts/reports/.gitkeep
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Local data / artifacts
+data/raw/
+data/processed/
+algorithm/artifacts/
+
+# IDE
+.idea/
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/
