@@ -1,0 +1,23 @@
+{
+  "model_version": "two_tower_v1",
+  "model_type": "two_tower_retrieval",
+  "status": "production",
+  "description": "Two-tower retrieval model for strategy-aware intent-to-site matching.",
+  "artifact_path": "algorithm/artifacts/models/two_tower_v1/model.pt",
+  "preprocessing_path": null,
+  "candidate_data_path": "data/processed/retrieval/candidate_sites.parquet",
+  "query_intents_path": "data/processed/retrieval/query_intents.jsonl",
+  "training_data_path": "data/processed/retrieval/training_pairs.parquet",
+  "metrics": {
+    "top10_match_rate_mean": 0.5428571428571428,
+    "top20_match_rate_mean": 0.5547619047619048,
+    "top20_mean_score_mean": 66.10833333333333,
+    "top20_median_score_mean": 66.39047619047619,
+    "top20_high_score_rate_mean": 0.4904761904761905
+  },
+  "notes": [
+    "Weakly supervised from heuristic strategy scores.",
+    "Used as the default retrieval backbone for backend inference.",
+    "Candidate table and query intents are required runtime artifacts."
+  ]
+}

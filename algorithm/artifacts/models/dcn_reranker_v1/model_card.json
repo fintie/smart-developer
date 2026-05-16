@@ -1,0 +1,23 @@
+{
+  "model_version": "dcn_reranker_v1",
+  "model_type": "dcn_reranker",
+  "status": "production",
+  "description": "Deep & Cross Network reranker for second-stage tabular reranking after two-tower recall.",
+  "artifact_path": "algorithm/artifacts/models/dcn_reranker_v1/model.pt",
+  "preprocessing_path": "algorithm/artifacts/models/dcn_reranker_v1/preprocessing.json",
+  "candidate_data_path": "data/processed/retrieval/candidate_sites.parquet",
+  "training_data_path": "algorithm/artifacts/reranker/reranker_train.parquet",
+  "eval_data_path": "algorithm/artifacts/reranker/reranker_eval.parquet",
+  "metrics": {
+    "top10_match_rate_mean": 0.5190476190476191,
+    "top20_match_rate_mean": 0.5333333333333334,
+    "top20_mean_score_mean": 70.77595238095238,
+    "top20_median_score_mean": 71.27619047619048,
+    "top20_high_score_rate_mean": 0.6190476190476191
+  },
+  "notes": [
+    "Used as the default production reranker.",
+    "DCN probability is used for ranking, not as a calibrated product-facing probability.",
+    "Improves reranked top-20 mean strategy score and high-score rate compared with retrieval-only ranking."
+  ]
+}
