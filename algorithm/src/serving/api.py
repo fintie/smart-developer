@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from algorithm.src.mlops.logger import log_retrieval_response, log_user_feedback
+from algorithm.src.explanation.template_generator import add_template_explanations
 from algorithm.src.inference.predictor import (
     DEFAULT_RERANKING_MODEL,
     DEFAULT_RETRIEVAL_MODEL,
@@ -36,6 +37,7 @@ PRODUCT_RESULT_FIELDS = [
     "fusion_score",
     "dcn_prob",
     "dcn_rank_score",
+    "fast_explanation",
     "explanation",
 ]
 
@@ -57,6 +59,7 @@ class RetrieveSitesPayload(BaseModel):
     recall_k: int = Field(default=1000, ge=10, le=10000)
 
     with_explanations: bool = False
+    use_template_explanations: bool = True
 
     retrieval_model: str = DEFAULT_RETRIEVAL_MODEL
     use_dcn_reranker: bool = True
@@ -184,6 +187,17 @@ def retrieve_sites(payload: RetrieveSitesPayload) -> dict[str, Any]:
     )
 
     response = state.predictor.predict(request)
+
+    if payload.use_template_explanations:
+        response["results"] = add_template_explanations(
+            response.get("results", []),
+            strategy=payload.strategy,
+            output_field="fast_explanation",
+        )
+        response["metadata"]["use_template_explanations"] = True
+    else:
+        response["metadata"]["use_template_explanations"] = False
+
     response["service"] = {
         "mode": "warm_predictor_singleton",
         "service_startup_latency_ms": state.startup_latency_ms,
