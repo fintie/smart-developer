@@ -152,8 +152,10 @@ def health() -> dict[str, Any]:
         "service_startup_latency_ms": state.startup_latency_ms,
         "model_load_and_warmup_latency_ms": state.warmup_latency_ms,
         "warm_request_expected": state.is_ready,
-        "retrieval_model": DEFAULT_RETRIEVAL_MODEL,
-        "reranking_model": DEFAULT_RERANKING_MODEL,
+        "production_models": {
+            "retrieval_model": DEFAULT_RETRIEVAL_MODEL,
+            "reranking_model": DEFAULT_RERANKING_MODEL,
+        },
     }
 
 
