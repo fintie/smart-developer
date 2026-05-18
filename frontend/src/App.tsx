@@ -349,6 +349,13 @@ function App() {
             </div>
           )}
 
+          {searchResponse && !loading && searchResponse.results.length == 0 && (
+            <div className="empty-state">
+              No exact matches found for this locality. Try removing the locality filter or
+              using a nearby Suburb.
+            </div>
+          )}
+
           {loading && <div className="empty-state">Loading ranked sites...</div>}
 
           <div className="site-list">
