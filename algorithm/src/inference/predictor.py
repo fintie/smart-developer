@@ -28,6 +28,7 @@ class PredictionRequest:
     dedupe_by_address: bool = True
     locality: str | None = None
     address_contains: str | None = None
+    location_fallback: bool = True
     explanation_model: str = DEFAULT_EXPLANATION_MODEL
 
 
@@ -72,6 +73,7 @@ class SmartDeveloperPredictor:
             dedupe_by_address=request.dedupe_by_address,
             locality=request.locality,
             address_contains=request.address_contains,
+            location_fallback=request.location_fallback,
             attach_explanations=request.with_explanations,
             explanation_model=request.explanation_model,
             use_dcn_reranker=request.use_dcn_reranker,
@@ -124,6 +126,12 @@ class SmartDeveloperPredictor:
         )
 
         results_df = retriever.retrieve(retrieval_request)
+        location_metadata = {
+            "location_filter_requested": results_df.attrs.get("location_filter_requested", False),
+            "exact_location_match_count": results_df.attrs.get("exact_location_match_count"),
+            "location_fallback_used": results_df.attrs.get("location_fallback_used", False),
+            "location_warning": results_df.attrs.get("location_warning"),
+        }
         records = self._clean_records(results_df)
 
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
@@ -144,6 +152,10 @@ class SmartDeveloperPredictor:
                 "dedupe_by_address": request.dedupe_by_address,
                 "locality": request.locality,
                 "address_contains": request.address_contains,
+                "location_filter_requested": location_metadata["location_filter_requested"],
+                "exact_location_match_count": location_metadata["exact_location_match_count"],
+                "location_fallback_used": location_metadata["location_fallback_used"],
+                "location_warning": location_metadata["location_warning"],
                 "latency_ms": latency_ms,
                 "result_count": len(records),
             },

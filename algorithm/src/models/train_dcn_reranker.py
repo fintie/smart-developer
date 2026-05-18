@@ -13,7 +13,7 @@ import torch.nn as nn
 import yaml
 from sklearn.preprocessing import StandardScaler
 from torch.optim import AdamW
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from algorithm.src.models.datasets import RerankerDataset

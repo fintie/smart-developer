@@ -146,8 +146,8 @@ The service uses a predictor singleton. Cold start may be slow, but warm request
 ## 6. Retrieval API Example
 
 ```bash
-curl -X POST http://localhost:8001/retrieve-sites \\
-  -H "Content-Type: application/json" \\
+curl -X POST http://localhost:8001/retrieve-sites \
+  -H "Content-Type: application/json" \
   -d '{
     "strategy": "single_dwelling_rebuild",
     "query_text": "I want a site for detached house redevelopment on standard residential land, with low planning constraints and a suitable lot size.",
@@ -249,8 +249,8 @@ Main tables:
 Feedback endpoint example:
 
 ```bash
-curl -X POST http://localhost:8001/feedback \\
-  -H "Content-Type: application/json" \\
+curl -X POST http://localhost:8001/feedback \
+  -H "Content-Type: application/json" \
   -d '{
     "request_id": "req_xxx",
     "rid": "5304579",
@@ -268,8 +268,8 @@ curl -X POST http://localhost:8001/feedback \\
 Reports can be generated from a logged `request_id`.
 
 ```bash
-curl -X POST http://localhost:8001/report-jobs \\
-  -H "Content-Type: application/json" \\
+curl -X POST http://localhost:8001/report-jobs \
+  -H "Content-Type: application/json" \
   -d '{
     "request_id": "req_xxx",
     "explanation_mode": "template",
@@ -349,12 +349,12 @@ health check
 If using CLI demo:
 
 ```bash
-python -m algorithm.demo_retrieval \\
-  --experiment two_tower_v1 \\
-  --strategy low_rise_apartment \\
-  --query-text "I want a site for low-rise apartment redevelopment near a train station, with high development zoning, a large site, and limited planning constraints." \\
-  --top-k 5 \\
-  --recall-k 1000 \\
+python -m algorithm.demo_retrieval \
+  --experiment two_tower_v1 \
+  --strategy low_rise_apartment \
+  --query-text "I want a site for low-rise apartment redevelopment near a train station, with high development zoning, a large site, and limited planning constraints." \
+  --top-k 5 \
+  --recall-k 1000 \
   --locality WAITARA
 ```
 

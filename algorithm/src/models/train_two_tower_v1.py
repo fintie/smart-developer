@@ -12,9 +12,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import yaml
 from torch.optim import AdamW
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
-from transformers import AutoTokenizer, get_linear_schedule_with_warmup
+from transformers import get_linear_schedule_with_warmup
 
 from algorithm.src.models.datasets import PositivePairDataset
 from algorithm.src.models.two_tower_model import TwoTowerModel

@@ -1,3 +1,9 @@
+"""
+Experimentation purpose
+- This version is better at sharpening boundaries between similar strategies,
+- but can be less balanced than v1 overall.
+"""
+
 from __future__ import annotations
 import argparse
 import json
@@ -14,7 +20,7 @@ import yaml
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from transformers import AutoTokenizer, get_linear_schedule_with_warmup
+from transformers import get_linear_schedule_with_warmup
 
 from algorithm.src.models.datasets import TripletTextDataset
 from algorithm.src.models.two_tower_model import TwoTowerModel
