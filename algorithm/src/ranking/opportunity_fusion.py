@@ -4,11 +4,11 @@ import pandas as pd
 
 
 DEFAULT_FUSION_WEIGHTS = {
-    "base": 0.50,
-    "policy": 0.25,
-    "value": 0.15,
-    "budget": 0.05,
-    "cost_penalty": 0.05,
+    "base": 0.55,
+    "policy": 0.35,
+    "value": 0.05,
+    "budget": 0.03,
+    "cost_penalty": 0.02,
 }
 
 
@@ -35,14 +35,21 @@ def _normalise_minmax(series: pd.Series) -> pd.Series:
 
 def _get_base_score(df: pd.DataFrame) -> pd.Series:
     """
-    Prefer existing learned reranker score if available.
-    Fallbacks:
-      dcn_rank_score
-      dcn_prob
-      fusion_score
-      strategy_score
+    Product-facing base score.
+
+    Prefer strategy_score because it is already an interpretable 0-100 fit score.
+    DCN scores are useful for learned ordering, but they are often tightly clustered
+    and should not be min-max normalised over a small top-k pool for product scoring.
     """
-    for col in ["dcn_rank_score", "dcn_prob", "fusion_score", "strategy_score"]:
+    if "strategy_score" in df.columns:
+        return (
+            pd.to_numeric(df["strategy_score"], errors="coerce")
+            .fillna(50.0)
+            .clip(0, 100)
+            / 100.0
+        )
+
+    for col in ["dcn_rank_score", "dcn_prob", "fusion_score"]:
         if col in df.columns:
             return _normalise_minmax(df[col])
 
