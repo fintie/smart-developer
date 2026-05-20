@@ -59,7 +59,12 @@ function SiteCard({
   onFeedback: (eventType: string, site: SiteResult, index: number) => void;
 }) {
   const address = site.base_site_address || site.address || "Unknown address";
-  const explanation = site.fast_explanation || site.explanation || "No explanation available.";
+  const explanation =
+    site.agent_pitch ||
+    site.policy_explanation ||
+    site.fast_explanation ||
+    site.explanation ||
+    "No explanation available.";
 
   return (
     <article className="site-card">
@@ -69,8 +74,8 @@ function SiteCard({
           <h3>{address}</h3>
         </div>
         <div className="score-box">
-          <span>Fit Score</span>
-          <strong>{formatNumber(site.strategy_score)}</strong>
+          <span>Opportunity</span>
+          <strong>{formatNumber(site.agent_opportunity_score ?? site.strategy_score)}</strong>
         </div>
       </div>
 
@@ -79,6 +84,12 @@ function SiteCard({
         <span>Lot: {site.lot_size_band ?? "N/A"}</span>
         <span>Constraints: {site.constraint_severity_band ?? "N/A"}</span>
         <span>Station: {formatDistance(site.distance_to_station_m)}</span>
+        <span>
+          Policy:{" "}
+          {typeof site.policy_upside_score === "number"
+            ? `${site.policy_signal_band ?? "signal"} (${site.policy_upside_score.toFixed(0)})`
+            : "N/A"}
+        </span>
         <span>
           Map:{" "}
           {typeof site.latitude === "number" && typeof site.longitude === "number"

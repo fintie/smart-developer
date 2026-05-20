@@ -24,6 +24,10 @@ PRODUCT_RESULT_FIELDS = [
     "geometry_type",
     "geocode_source",
     "geocode_confidence",
+
+    "agent_opportunity_score",
+    "agent_rank_position",
+
     "primary_zoning_code",
     "primary_zoning_class",
     "zoning_band",
@@ -39,8 +43,17 @@ PRODUCT_RESULT_FIELDS = [
     "top_strategy",
     "top_strategy_score",
     "strategy_score",
+
+    "policy_upside_score",
+    "policy_signal_band",
+    "policy_matched_rules",
+    "policy_matched_policies",
+    "policy_matched_policy_names",
+    "policy_explanation",
+
     "fast_explanation",
     "explanation",
+    "agent_pitch",
 ]
 
 

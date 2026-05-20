@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass
 from typing import Any
 import pandas as pd
 from algorithm.src.retrieval.hybrid_retrieve import HybridRetriever, RetrievalRequest
+from algorithm.src.policy.policy_scorer import PolicyScorer
+from algorithm.src.ranking.opportunity_fusion import apply_opportunity_fusion, add_agent_pitch
 
 
 DEFAULT_RETRIEVAL_MODEL = "two_tower_v1"
@@ -55,6 +57,8 @@ class SmartDeveloperPredictor:
         self.default_reranking_model = default_reranking_model
         self.default_explanation_model = default_explanation_model
 
+        self.policy_scorer = PolicyScorer()
+
         self._retriever_cache: dict[str, HybridRetriever] = {}
 
     def _get_retriever(self, experiment: str) -> HybridRetriever:
@@ -81,24 +85,61 @@ class SmartDeveloperPredictor:
         )
 
     @staticmethod
-    def _clean_records(df: pd.DataFrame) -> list[dict[str, Any]]:
+    def _clean_value(value):
+        import math
+        import numpy as np
+        import pandas as pd
+
+        if value is None:
+            return None
+
+        # Keep lists JSON-safe.
+        if isinstance(value, list):
+            return [SmartDeveloperPredictor._clean_value(v) for v in value]
+
+        # Keep dicts JSON-safe.
+        if isinstance(value, dict):
+            return {
+                str(k): SmartDeveloperPredictor._clean_value(v)
+                for k, v in value.items()
+            }
+
+        # Convert numpy scalar types to Python scalar types.
+        if isinstance(value, np.generic):
+            value = value.item()
+
+        # Convert pandas Timestamp to ISO string.
+        if isinstance(value, pd.Timestamp):
+            if pd.isna(value):
+                return None
+            return value.isoformat()
+
+        # Convert NaN / inf floats.
+        if isinstance(value, float):
+            if math.isnan(value) or math.isinf(value):
+                return None
+            return value
+
+        # Only call pd.isna on scalar-like values.
+        try:
+            if pd.isna(value):
+                return None
+        except (TypeError, ValueError):
+            pass
+
+        return value
+
+    def _clean_records(self, df: pd.DataFrame) -> list[dict]:
         records = df.to_dict(orient="records")
-        cleaned: list[dict[str, Any]] = []
+        cleaned = []
 
-        for record in records:
-            item: dict[str, Any] = {}
-            for k, v in record.items():
-                if pd.isna(v):
-                    item[k] = None
-                elif hasattr(v, "item"):
-                    item[k] = v.item()
-                else:
-                    item[k] = v
-
-            if "base_site_address" not in item or item.get("base_site_address") is None:
-                item["base_site_address"] = item.get("address")
-
-            cleaned.append(item)
+        for row in records:
+            cleaned.append(
+                {
+                    str(k): self._clean_value(v)
+                    for k, v in row.items()
+                }
+            )
 
         return cleaned
 
@@ -126,13 +167,23 @@ class SmartDeveloperPredictor:
         )
 
         results_df = retriever.retrieve(retrieval_request)
+
         location_metadata = {
             "location_filter_requested": results_df.attrs.get("location_filter_requested", False),
             "exact_location_match_count": results_df.attrs.get("exact_location_match_count"),
             "location_fallback_used": results_df.attrs.get("location_fallback_used", False),
             "location_warning": results_df.attrs.get("location_warning"),
         }
+
+        if not results_df.empty:
+            results_df = self.policy_scorer.score_dataframe(
+                results_df,
+                strategy=request.strategy,
+            )
+            results_df = apply_opportunity_fusion(results_df)
+
         records = self._clean_records(results_df)
+        records = add_agent_pitch(records)
 
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
@@ -152,10 +203,10 @@ class SmartDeveloperPredictor:
                 "dedupe_by_address": request.dedupe_by_address,
                 "locality": request.locality,
                 "address_contains": request.address_contains,
-                "location_filter_requested": location_metadata["location_filter_requested"],
-                "exact_location_match_count": location_metadata["exact_location_match_count"],
-                "location_fallback_used": location_metadata["location_fallback_used"],
-                "location_warning": location_metadata["location_warning"],
+                **location_metadata,
+                "policy_scoring_enabled": True,
+                "opportunity_fusion_enabled": True,
+                "ranking_mode": "policy_aware_agent_opportunity",
                 "latency_ms": latency_ms,
                 "result_count": len(records),
             },

@@ -1,0 +1,141 @@
+version: "0.1.0"
+
+metadata:
+  name: "NSW Housing Policy Scoring Rules"
+  description: >
+    Structured policy scoring rules for Smart Developer. These rules are used
+    to produce policy upside scores that can affect final recommendation ranking.
+    RAG evidence can be attached later for source-backed explanations.
+  caveat: >
+    Policy scoring is indicative only and does not constitute planning, legal,
+    valuation, or financial advice. Site-specific verification is required.
+
+rules:
+  - rule_id: low_mid_rise_800m_residential
+    policy_id: nsw_low_mid_rise_2025
+    policy_name: NSW Low and Mid-Rise Housing Policy
+    description: Low and mid-rise housing opportunity near transport or nominated centres.
+    applies_to_strategies:
+      - dual_occupancy
+      - townhouse_multi_dwelling
+      - low_rise_apartment
+      - assembly_opportunity
+    trigger:
+      within_800m_catchment: true
+      zoning_codes_any:
+        - R1
+        - R2
+        - R3
+        - R4
+        - MU1
+      constraint_severity_not:
+        - high
+    score:
+      policy_upside_points: 25
+      confidence: medium
+    explanation_hint: >
+      The site is within a transport catchment and has zoning that may align with
+      NSW low and mid-rise housing reform themes, subject to detailed planning checks.
+
+  - rule_id: tod_high_density_station_access
+    policy_id: nsw_tod_2024
+    policy_name: NSW Transport Oriented Development Program
+    description: Transport-oriented development style opportunity near station access.
+    applies_to_strategies:
+      - low_rise_apartment
+      - townhouse_multi_dwelling
+      - assembly_opportunity
+    trigger:
+      within_800m_catchment: true
+      zoning_codes_any:
+        - R3
+        - R4
+        - MU1
+        - E1
+        - E2
+      lot_size_band_any:
+        - m
+        - l
+        - xl
+    score:
+      policy_upside_points: 30
+      confidence: medium
+    explanation_hint: >
+      The site may have transport-oriented development appeal because it combines
+      station access with zoning and site scale that may support higher-density
+      residential or mixed-use outcomes.
+
+  - rule_id: housing_sepp_affordable_bonus_review
+    policy_id: nsw_housing_sepp_infill_affordable
+    policy_name: NSW Housing SEPP / In-fill Affordable Housing
+    description: Potential affordable housing bonus review candidate.
+    applies_to_strategies:
+      - low_rise_apartment
+      - townhouse_multi_dwelling
+      - assembly_opportunity
+    trigger:
+      zoning_band_any:
+        - med_dev
+        - high_dev
+        - mixed_use
+      lot_size_band_any:
+        - l
+        - xl
+      constraint_severity_not:
+        - high
+    score:
+      policy_upside_points: 15
+      confidence: low
+    explanation_hint: >
+      The site may warrant further review under Housing SEPP affordable housing
+      provisions, although eligibility depends on detailed design, tenure,
+      local controls, and planning pathway.
+
+  - rule_id: r4_large_site_density_signal
+    policy_id: nsw_housing_reform_general
+    policy_name: NSW Housing Supply Reform Context
+    description: Strong density signal for large R4 sites.
+    applies_to_strategies:
+      - low_rise_apartment
+      - townhouse_multi_dwelling
+      - assembly_opportunity
+    trigger:
+      zoning_codes_any:
+        - R4
+      lot_size_band_any:
+        - l
+        - xl
+      constraint_severity_not:
+        - high
+    score:
+      policy_upside_points: 20
+      confidence: medium
+    explanation_hint: >
+      The site has a strong density signal because it combines high-density
+      residential zoning with a larger site profile, which may increase developer
+      interest under broader housing supply reform settings.
+
+  - rule_id: r2_dual_occupancy_low_mid_rise_signal
+    policy_id: nsw_low_mid_rise_2025
+    policy_name: NSW Low and Mid-Rise Housing Policy
+    description: R2 residential land with potential dual occupancy or low-rise relevance.
+    applies_to_strategies:
+      - dual_occupancy
+      - single_dwelling_rebuild
+      - granny_flat
+    trigger:
+      zoning_codes_any:
+        - R2
+      lot_size_band_any:
+        - m
+        - l
+        - xl
+      constraint_severity_not:
+        - high
+    score:
+      policy_upside_points: 10
+      confidence: low
+    explanation_hint: >
+      The site is in a low-density residential zone with a usable lot profile,
+      which may be relevant to lower-scale housing reform opportunities subject
+      to local controls.

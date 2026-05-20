@@ -25,6 +25,8 @@ export type SiteResult = {
   geometry_type?: string;
   geocode_source?: string;
   geocode_confidence?: string;
+  agent_opportunity_score?: number;
+  agent_rank_position?: number;
   primary_zoning_code?: string;
   primary_zoning_class?: string;
   zoning_band?: string;
@@ -40,12 +42,19 @@ export type SiteResult = {
   top_strategy?: string;
   top_strategy_score?: number;
   strategy_score?: number;
+  policy_upside_score?: number;
+  policy_signal_band?: string;
+  policy_matched_rules?: string[];
+  policy_matched_policies?: string[];
+  policy_matched_policy_names?: string[];
+  policy_explanation?: string;
   retrieval_similarity?: number;
   fusion_score?: number;
   dcn_prob?: number;
   dcn_rank_score?: number;
   fast_explanation?: string;
   explanation?: string;
+  agent_pitch?: string;
 };
 
 export type SearchResponse = {

@@ -127,6 +127,7 @@ class RetrievalRequest:
     # location filters
     locality: str | None = None
     address_contains: str | None = None
+    location_fallback: bool = False
 
 
 class HybridRetriever:

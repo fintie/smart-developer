@@ -322,7 +322,6 @@ Current label mapping:
 Useful scripts:
 
 ```bash
-./scripts/run_demo_retrieval.sh
 ./scripts/run_demo_report.sh
 ./scripts/export_feedback_dataset.sh
 ./scripts/demo_full_mlops_flow.sh
