@@ -95,6 +95,25 @@ struct Args {
 
     #[arg(long)]
     sequential: bool,
+
+    /// Optional RID file for downloading only selected property records.
+    ///
+    /// This mode is intended for:
+    ///   --dataset property --rid-file data/processed/retrieval/candidate_rids.txt
+    ///
+    /// It avoids downloading the full NSW property/addressing dataset.
+    #[arg(long)]
+    rid_file: Option<PathBuf>,
+
+    /// Chunk size used in --rid-file mode.
+    #[arg(long, default_value_t = 200)]
+    rid_chunk_size: usize,
+
+    /// Optional maximum number of chunks to process.
+    ///
+    /// Useful for smoke tests.
+    #[arg(long)]
+    limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -130,6 +149,10 @@ fn chunk_vec(values: &[i64], chunk_size: usize) -> Vec<Vec<i64>> {
     values.chunks(chunk_size).map(|c| c.to_vec()).collect()
 }
 
+fn chunk_strings(values: &[String], chunk_size: usize) -> Vec<Vec<String>> {
+    values.chunks(chunk_size).map(|c| c.to_vec()).collect()
+}
+
 fn append_failed_id(failed_path: &Path, object_id: i64) -> Result<()> {
     let mut file = OpenOptions::new()
         .create(true)
@@ -140,6 +163,38 @@ fn append_failed_id(failed_path: &Path, object_id: i64) -> Result<()> {
     writeln!(file, "{object_id}")
         .with_context(|| format!("failed to append to {}", failed_path.display()))?;
     Ok(())
+}
+
+fn read_rids(path: &Path) -> Result<Vec<String>> {
+    let text = fs::read_to_string(path)
+        .with_context(|| format!("failed to read RID file {}", path.display()))?;
+
+    let mut rids: Vec<String> = text
+        .lines()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.trim_end_matches(".0").to_string())
+        .collect();
+
+    rids.sort();
+    rids.dedup();
+
+    if rids.is_empty() {
+        return Err(anyhow!("RID file is empty: {}", path.display()));
+    }
+
+    Ok(rids)
+}
+
+fn non_empty_file_exists(path: &Path) -> Result<bool> {
+    if !path.exists() {
+        return Ok(false);
+    }
+
+    let metadata = fs::metadata(path)
+        .with_context(|| format!("failed to read metadata for {}", path.display()))?;
+
+    Ok(metadata.len() > 0)
 }
 
 async fn fetch_all_ids(client: &Client, cfg: &DatasetConfig, ids_path: &Path) -> Result<Vec<i64>> {
@@ -159,6 +214,7 @@ async fn fetch_all_ids(client: &Client, cfg: &DatasetConfig, ids_path: &Path) ->
         .with_context(|| format!("non-success status when fetching IDs for {}", cfg.name))?;
 
     let text = response.text().await.context("failed to read ID response body")?;
+
     fs::write(ids_path, &text)
         .with_context(|| format!("failed to write {}", ids_path.display()))?;
 
@@ -197,6 +253,7 @@ async fn fetch_chunk_once(
         ("objectIds", object_ids_str),
         ("outFields", cfg.out_fields.to_string()),
         ("returnGeometry", "true".to_string()),
+        ("outSR", "4326".to_string()),
         ("f", "geojson".to_string()),
     ];
 
@@ -206,6 +263,58 @@ async fn fetch_chunk_once(
         .send()
         .await
         .with_context(|| format!("failed POST request for {}", out_path.display()))?;
+
+    let status = response.status();
+    let text = response
+        .text()
+        .await
+        .with_context(|| format!("failed reading body for {}", out_path.display()))?;
+
+    if !status.is_success() {
+        let preview: String = text.chars().take(1000).collect();
+        return Err(anyhow!("status {}: {}", status, preview));
+    }
+
+    fs::write(out_path, text)
+        .with_context(|| format!("failed writing {}", out_path.display()))?;
+
+    Ok(())
+}
+
+async fn fetch_rid_chunk_once(
+    client: &Client,
+    cfg: &DatasetConfig,
+    rids: &[String],
+    out_path: &Path,
+    pause_ms: u64,
+) -> Result<()> {
+    if pause_ms > 0 {
+        sleep(Duration::from_millis(pause_ms)).await;
+    }
+
+    // Candidate RID values appear numeric in candidate_sites.parquet.
+    // Query them as numeric first:
+    //   RID IN (123,456,789)
+    //
+    // If ArcGIS later rejects this, switch to quoted strings:
+    //   RID IN ('123','456','789')
+    let rid_values = rids.join(",");
+    let where_clause = format!("RID IN ({})", rid_values);
+
+    let payload = [
+        ("where", where_clause),
+        ("outFields", cfg.out_fields.to_string()),
+        ("returnGeometry", "true".to_string()),
+        ("outSR", "4326".to_string()),
+        ("f", "geojson".to_string()),
+    ];
+
+    let response = client
+        .post(cfg.base_url)
+        .form(&payload)
+        .send()
+        .await
+        .with_context(|| format!("failed POST RID request for {}", out_path.display()))?;
 
     let status = response.status();
     let text = response
@@ -235,7 +344,7 @@ async fn fetch_chunk_recursive(
 ) -> Result<()> {
     let out_path = chunks_dir.join(format!("{chunk_name}.geojson"));
 
-    if out_path.exists() {
+    if non_empty_file_exists(&out_path)? {
         return Ok(());
     }
 
@@ -299,6 +408,146 @@ async fn fetch_chunk_recursive(
     }
 }
 
+async fn run_rid_filtered_property_download(
+    args: &Args,
+    client: &Client,
+    cfg: DatasetConfig,
+    chunks_dir: &Path,
+    failed_chunks_path: &Path,
+) -> Result<()> {
+    let rid_file = args
+        .rid_file
+        .as_ref()
+        .ok_or_else(|| anyhow!("internal error: RID mode called without --rid-file"))?;
+
+    if cfg.name != "property" {
+        return Err(anyhow!(
+            "--rid-file mode is currently intended for --dataset property"
+        ));
+    }
+
+    println!("Mode: RID-filtered property geometry download");
+    println!("RID file: {}", rid_file.display());
+
+    let rids = read_rids(rid_file)?;
+    println!("Total unique RIDs: {}", rids.len());
+
+    let rid_chunks = chunk_strings(&rids, args.rid_chunk_size);
+    let total_chunks = rid_chunks.len();
+    println!("Prepared {} RID chunks.", total_chunks);
+
+    let mut todo: Vec<(usize, Vec<String>, PathBuf)> = Vec::new();
+
+    for (idx0, chunk_rids) in rid_chunks.into_iter().enumerate() {
+        let idx = idx0 + 1;
+        let out_path = chunks_dir.join(format!(
+            "{}_rid_{:04}_of_{:04}.geojson",
+            cfg.chunk_prefix, idx, total_chunks
+        ));
+
+        if non_empty_file_exists(&out_path)? {
+            continue;
+        }
+
+        todo.push((idx, chunk_rids, out_path));
+    }
+
+    if let Some(limit) = args.limit {
+        todo.truncate(limit);
+    }
+
+    println!("RID chunks to download: {}", todo.len());
+
+    if todo.is_empty() {
+        println!("Done. All selected RID chunks already exist.");
+        return Ok(());
+    }
+
+    if args.sequential {
+        for (completed0, (idx, chunk_rids, out_path)) in todo.into_iter().enumerate() {
+            let completed = completed0 + 1;
+            println!(
+                "[{}/{}] Downloading RID chunk {} with {} RIDs...",
+                completed,
+                args.limit.unwrap_or(total_chunks).min(total_chunks),
+                idx,
+                chunk_rids.len()
+            );
+
+            match fetch_rid_chunk_once(
+                client,
+                &cfg,
+                &chunk_rids,
+                &out_path,
+                args.request_pause_ms,
+            )
+            .await
+            {
+                Ok(_) => println!("Saved {}", out_path.display()),
+                Err(e) => eprintln!("Failed RID chunk {}: {}", idx, e),
+            }
+        }
+    } else {
+        let total_to_download = todo.len();
+
+        let results = stream::iter(todo.into_iter().map(|(idx, chunk_rids, out_path)| {
+            let client = client.clone();
+            let pause_ms = args.request_pause_ms;
+
+            async move {
+                let result =
+                    fetch_rid_chunk_once(&client, &cfg, &chunk_rids, &out_path, pause_ms).await;
+                (idx, out_path, result)
+            }
+        }))
+        .buffer_unordered(args.max_concurrency)
+        .collect::<Vec<_>>()
+        .await;
+
+        let mut failed_chunks = Vec::new();
+        let mut completed = 0usize;
+
+        for (idx, out_path, result) in results {
+            completed += 1;
+
+            match result {
+                Ok(_) => {
+                    if completed <= 5 || completed % 50 == 0 || completed == total_to_download {
+                        println!(
+                            "[{}/{}] Downloaded RID chunk {}: {}",
+                            completed,
+                            total_to_download,
+                            idx,
+                            out_path.file_name().unwrap().to_string_lossy()
+                        );
+                    }
+                }
+                Err(e) => {
+                    eprintln!(
+                        "[{}/{}] Failed RID chunk {}: {}",
+                        completed, total_to_download, idx, e
+                    );
+                    failed_chunks.push(idx);
+                }
+            }
+        }
+
+        if !failed_chunks.is_empty() {
+            failed_chunks.sort_unstable();
+            let payload = json!({ "failed_rid_chunks": failed_chunks });
+            fs::write(failed_chunks_path, serde_json::to_string_pretty(&payload)?)
+                .with_context(|| format!("failed to write {}", failed_chunks_path.display()))?;
+            println!(
+                "Finished with failures. Failed RID chunk indices saved to: {}",
+                failed_chunks_path.display()
+            );
+        }
+    }
+
+    println!("Done.");
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
@@ -322,7 +571,23 @@ async fn main() -> Result<()> {
         .context("failed to build reqwest client")?;
 
     println!("Dataset: {}", cfg.name);
+    println!("Raw dir: {}", raw_dir.display());
+    println!("Chunks dir: {}", chunks_dir.display());
+
+    if args.rid_file.is_some() {
+        return run_rid_filtered_property_download(
+            &args,
+            &client,
+            cfg,
+            &chunks_dir,
+            &failed_chunks_path,
+        )
+        .await;
+    }
+
+    println!("Mode: full objectId download");
     println!("Fetching all object IDs...");
+
     let object_ids = fetch_all_ids(&client, &cfg, &ids_path).await?;
     println!("Total object IDs: {}", object_ids.len());
 
@@ -333,25 +598,38 @@ async fn main() -> Result<()> {
     if cfg.recursive_on_failure {
         println!("Mode: recursive split on failure");
 
-        for (idx0, chunk_ids) in chunks.into_iter().enumerate() {
+        let selected_chunks = if let Some(limit) = args.limit {
+            chunks.into_iter().take(limit).collect::<Vec<_>>()
+        } else {
+            chunks
+        };
+
+        let selected_total = selected_chunks.len();
+
+        for (idx0, chunk_ids) in selected_chunks.into_iter().enumerate() {
             let idx = idx0 + 1;
             let chunk_name = format!("{}_{:04}_of_{:04}", cfg.chunk_prefix, idx, total_chunks);
             let out_path = chunks_dir.join(format!("{chunk_name}.geojson"));
 
-            if out_path.exists() {
-                if idx <= 5 || idx % 100 == 0 || idx == total_chunks {
+            if non_empty_file_exists(&out_path)? {
+                if idx <= 5 || idx % 100 == 0 || idx == selected_total {
                     println!(
                         "[{}/{}] Skipping existing chunk: {}",
                         idx,
-                        total_chunks,
+                        selected_total,
                         out_path.file_name().unwrap().to_string_lossy()
                     );
                 }
                 continue;
             }
 
-            if idx <= 5 || idx % 100 == 0 || idx == total_chunks {
-                println!("[{}/{}] Processing {} ids...", idx, total_chunks, chunk_ids.len());
+            if idx <= 5 || idx % 100 == 0 || idx == selected_total {
+                println!(
+                    "[{}/{}] Processing {} ids...",
+                    idx,
+                    selected_total,
+                    chunk_ids.len()
+                );
             }
 
             fetch_chunk_recursive(
@@ -365,14 +643,15 @@ async fn main() -> Result<()> {
             )
             .await?;
 
-            if idx % 100 == 0 || idx == total_chunks {
-                println!("Progress: completed {} / {} top-level chunks", idx, total_chunks);
+            if idx % 100 == 0 || idx == selected_total {
+                println!("Progress: completed {} / {} selected chunks", idx, selected_total);
             }
         }
     } else {
         println!("Mode: concurrent chunk download");
 
         let mut todo: Vec<(usize, Vec<i64>, PathBuf)> = Vec::new();
+
         for (idx0, chunk_ids) in chunks.into_iter().enumerate() {
             let idx = idx0 + 1;
             let out_path = chunks_dir.join(format!(
@@ -380,33 +659,40 @@ async fn main() -> Result<()> {
                 cfg.chunk_prefix, idx, total_chunks
             ));
 
-            if out_path.exists() {
+            if non_empty_file_exists(&out_path)? {
                 continue;
             }
 
             todo.push((idx, chunk_ids, out_path));
         }
 
+        if let Some(limit) = args.limit {
+            todo.truncate(limit);
+        }
+
         println!("Chunks to download: {}", todo.len());
+
         if todo.is_empty() {
-            println!("Done. All chunks already exist.");
+            println!("Done. All selected chunks already exist.");
             return Ok(());
         }
 
         let results = if args.sequential {
             let mut out = Vec::new();
+
             for (idx, chunk_ids, out_path) in todo {
                 let result =
                     fetch_chunk_once(&client, &cfg, &chunk_ids, &out_path, args.request_pause_ms)
                         .await;
                 out.push((idx, out_path, result));
             }
+
             out
         } else {
             stream::iter(todo.into_iter().map(|(idx, chunk_ids, out_path)| {
                 let client = client.clone();
-                let cfg = cfg;
                 let pause_ms = args.request_pause_ms;
+
                 async move {
                     let result =
                         fetch_chunk_once(&client, &cfg, &chunk_ids, &out_path, pause_ms).await;
@@ -440,10 +726,7 @@ async fn main() -> Result<()> {
                 Err(e) => {
                     eprintln!(
                         "[{}/{}] Failed chunk {}: {}",
-                        completed,
-                        total_to_download,
-                        idx,
-                        e
+                        completed, total_to_download, idx, e
                     );
                     failed_chunks.push(idx);
                 }

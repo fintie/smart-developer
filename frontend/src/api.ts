@@ -20,6 +20,11 @@ export type SiteResult = {
   RID?: string | number;
   address?: string;
   base_site_address?: string;
+  latitude?: number;
+  longitude?: number;
+  geometry_type?: string;
+  geocode_source?: string;
+  geocode_confidence?: string;
   primary_zoning_code?: string;
   primary_zoning_class?: string;
   zoning_band?: string;

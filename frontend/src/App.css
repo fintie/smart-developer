@@ -368,3 +368,13 @@ textarea:focus {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+.map-card {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: white;
+  border: 1px solid #e3e8f2;
+  border-radius: 20px;
+  box-shadow: 0 12px 32px rgba(23, 32, 51, 0.06);
+  overflow: hidden;
+}

@@ -9,7 +9,8 @@ defaults:
 
   data:
     train_pairs_path: "data/processed/retrieval/training_pairs.parquet"
-    candidate_sites_path: "data/processed/retrieval/candidate_sites.parquet"
+    #candidate_sites_path: "data/processed/retrieval/candidate_sites.parquet"
+    candidate_sites_path: "data/processed/retrieval/candidate_sites_geo.parquet"
     query_path: "data/processed/retrieval/query_intents.jsonl"
     query_text_col: "query_text"
     candidate_text_col: "candidate_text_clean"

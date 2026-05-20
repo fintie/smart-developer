@@ -7,6 +7,8 @@ import {
   type SiteResult,
 } from "./api";
 import "./App.css";
+import "leaflet/dist/leaflet.css";
+import { ResultsMap } from "./components/ResultsMap";
 
 const STRATEGIES = [
   {
@@ -77,6 +79,12 @@ function SiteCard({
         <span>Lot: {site.lot_size_band ?? "N/A"}</span>
         <span>Constraints: {site.constraint_severity_band ?? "N/A"}</span>
         <span>Station: {formatDistance(site.distance_to_station_m)}</span>
+        <span>
+          Map:{" "}
+          {typeof site.latitude === "number" && typeof site.longitude === "number"
+            ? `${site.latitude.toFixed(4)}, ${site.longitude.toFixed(4)}`
+            : "N/A"}
+        </span>
       </div>
 
       <p className="explanation">{explanation}</p>
@@ -337,6 +345,10 @@ function App() {
                 <strong>{String(searchResponse.logging?.status ?? "N/A")}</strong>
               </div>
             </div>
+          )}
+
+          {searchResponse && searchResponse.results.length > 0 && (
+            <ResultsMap results={searchResponse.results} />
           )}
 
           {feedbackMessage && <div className="success-message">{feedbackMessage}</div>}
