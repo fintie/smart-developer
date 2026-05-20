@@ -31,11 +31,13 @@ dist/
 data/raw/*
 data/cleaned/*
 data/processed/*
+data/interim/*
 
 # Keep folder structure
 !data/raw/.gitkeep
 !data/cleaned/.gitkeep
 !data/processed/.gitkeep
+!data/interim/.gitkeep
 
 # Algorithm artifacts
 algorithm/artifacts/models/*
