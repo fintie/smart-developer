@@ -115,11 +115,30 @@ class SmartDeveloperPredictor:
 
         return profile
 
+    @staticmethod
+    def _expanded_retrieval_top_k(request: PredictionRequest) -> int:
+        """
+        Retrieve a larger candidate pool than the final requested top_k.
+
+        This gives the policy/economics/opportunity fusion layer enough candidates
+        to rerank. Without this, early retrieval truncation can make ranking profiles
+        ineffective, especially for budget-sensitive searches.
+        """
+        requested_top_k = max(int(request.top_k), 1)
+        recall_k = max(int(request.recall_k), requested_top_k)
+
+        return min(
+            max(requested_top_k * 20, 100),
+            recall_k,
+        )
+
     def _build_request(self, request: PredictionRequest) -> RetrievalRequest:
+        retrieval_top_k = self._expanded_retrieval_top_k(request)
+
         return RetrievalRequest(
             strategy=request.strategy,
             query_text=request.query_text,
-            top_k=request.top_k,
+            top_k=retrieval_top_k,
             recall_k=request.recall_k,
             alpha=request.alpha,
             beta=request.beta,
@@ -201,6 +220,7 @@ class SmartDeveloperPredictor:
 
         retriever = self._get_retriever(request.retrieval_model)
         retrieval_request = self._build_request(request)
+        retrieval_top_k = retrieval_request.top_k
 
         results_df = retriever.retrieve(retrieval_request)
 
@@ -223,6 +243,8 @@ class SmartDeveloperPredictor:
                 ranking_profile=request.ranking_profile,
             )
 
+            results_df = results_df.head(request.top_k).copy()
+
         records = self._clean_records(results_df)
         records = add_agent_pitch(records)
 
@@ -233,6 +255,8 @@ class SmartDeveloperPredictor:
             "query_text": request.query_text,
             "top_k": request.top_k,
             "recall_k": request.recall_k,
+            "retrieval_top_k": retrieval_top_k,
+            "final_top_k": request.top_k,
             "retrieval_model": request.retrieval_model,
             "reranking_model": request.reranking_model,
             "use_dcn_reranker": request.use_dcn_reranker,

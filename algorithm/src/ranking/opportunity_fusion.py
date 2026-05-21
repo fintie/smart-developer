@@ -21,12 +21,12 @@ FUSION_WEIGHT_PROFILES = {
         "cost_penalty": 0.05,
     },
     "budget_sensitive": {
-        "base": 0.30,
-        "policy": 0.15,
-        "value": 0.12,
-        "cost_efficiency": 0.25,
-        "budget": 0.08,
-        "cost_penalty": 0.10,
+        "base": 0.22,
+        "policy": 0.10,
+        "value": 0.10,
+        "cost_efficiency": 0.38,
+        "budget": 0.05,
+        "cost_penalty": 0.15,
     },
     "high_value": {
         "base": 0.32,
@@ -118,6 +118,9 @@ def apply_opportunity_fusion(
     if "cost_risk_score" not in out.columns:
         out["cost_risk_score"] = 50.0
 
+    if "cost_efficiency_score" not in out.columns:
+        out["cost_efficiency_score"] = 50.0
+
     if "strategy_score" not in out.columns:
         if "top_strategy_score" in out.columns:
             out["strategy_score"] = out["top_strategy_score"]
@@ -132,31 +135,78 @@ def apply_opportunity_fusion(
     cost_efficiency = _score_0_100(out, "cost_efficiency_score", default=50.0)
 
     opportunity = (
-        weights.get("base", 0.38) * base
-        + weights.get("policy", 0.22) * policy
-        + weights.get("value", 0.20) * value
-        + weights.get("cost_efficiency", 0.12) * cost_efficiency
-        + weights.get("budget", 0.03) * budget
-        - weights.get("cost_penalty", 0.05) * cost_risk
+            weights.get("base", 0.38) * base
+            + weights.get("policy", 0.22) * policy
+            + weights.get("value", 0.20) * value
+            + weights.get("cost_efficiency", 0.12) * cost_efficiency
+            + weights.get("budget", 0.03) * budget
+            - weights.get("cost_penalty", 0.05) * cost_risk
     )
+
+    if ranking_profile == "budget_sensitive":
+        cost_band = (
+            out["cost_band"].fillna("").astype(str).str.lower()
+            if "cost_band" in out.columns
+            else pd.Series([""] * len(out), index=out.index)
+        )
+
+        cost_risk_raw = pd.to_numeric(
+            out["cost_risk_score"],
+            errors="coerce",
+        ).fillna(50.0)
+
+        cost_eff_raw = pd.to_numeric(
+            out["cost_efficiency_score"],
+            errors="coerce",
+        ).fillna(50.0)
+
+        very_high_cost_mask = cost_band.eq("very_high") | (cost_risk_raw >= 80)
+        high_cost_mask = cost_band.eq("high") | (cost_risk_raw >= 70)
+        low_efficiency_mask = cost_eff_raw < 50
+
+        opportunity = opportunity.copy()
+
+        # Product intent: Budget-sensitive ranking should strongly demote
+        # high-capital / low-efficiency opportunities even if strategy fit is high.
+        opportunity = opportunity - very_high_cost_mask.astype(float) * 0.12
+        opportunity = opportunity - high_cost_mask.astype(float) * 0.06
+        opportunity = opportunity - low_efficiency_mask.astype(float) * 0.06
 
     out["agent_opportunity_score"] = (opportunity * 100).round(2)
     out["ranking_profile"] = ranking_profile
 
-    sort_cols = ["agent_opportunity_score"]
-    ascending = [False]
+    if ranking_profile == "budget_sensitive":
+        sort_cols = [
+            "agent_opportunity_score",
+            "cost_efficiency_score",
+            "cost_risk_score",
+            "estimated_total_project_cost",
+            "strategy_score",
+        ]
+        ascending = [False, False, True, True, False]
+    else:
+        sort_cols = ["agent_opportunity_score"]
+        ascending = [False]
 
-    if "policy_upside_score" in out.columns:
-        sort_cols.append("policy_upside_score")
-        ascending.append(False)
+        if "policy_upside_score" in out.columns:
+            sort_cols.append("policy_upside_score")
+            ascending.append(False)
 
-    if "strategy_score" in out.columns:
-        sort_cols.append("strategy_score")
-        ascending.append(False)
+        if "strategy_score" in out.columns:
+            sort_cols.append("strategy_score")
+            ascending.append(False)
+
+    sort_cols_available = []
+    ascending_available = []
+
+    for col, asc in zip(sort_cols, ascending):
+        if col in out.columns:
+            sort_cols_available.append(col)
+            ascending_available.append(asc)
 
     out = out.sort_values(
-        by=sort_cols,
-        ascending=ascending,
+        by=sort_cols_available,
+        ascending=ascending_available,
         na_position="last",
     ).reset_index(drop=True)
 
