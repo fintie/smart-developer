@@ -110,7 +110,7 @@ This represents future 3-month log price movement.
 For stability, the training target is clipped:
 
 $$
-\texttt{target_growth\_3m_clipped}\in[-0.30,0.30]
+\texttt{target\_growth\_3m\_clipped}\in[-0.30,0.30]
 $$
 
 At inference time, predictions are also scaled and clipped to avoid overreacting to noisy suburb-level transaction data.
@@ -137,7 +137,7 @@ where $\hat{g}_t$ is the estimated 3-month log growth.
 The Ridge objective is to estimate:
 
 $$
-(\mathbf{w}^*,b^*)=\underset{\mathbf{w},b}{\text{argmin}}\,\Bigg[\sum_{t=1}^n\Big(g_t-\mathbf{w}^\top\mathbf{z}_t-b\Big)^2+\lambda\lVert\mathbf{w}\rVert_2^2\Bigg]
+(\mathbf{w}',b')=\underset{\mathbf{w},b}{\text{argmin}}\Bigg[\sum_{t=1}^n\Big(g_t-\mathbf{w}^\top\mathbf{z}_t-b\Big)^2+\lambda\lVert\mathbf{w}\rVert_2^2\Bigg]
 $$
 
 where $\lambda>0$ is the regularisation strength.
@@ -145,7 +145,7 @@ where $\lambda>0$ is the regularisation strength.
 At inference time, the raw prediction is calibrated:
 
 $$
-\tilde{g}_t = \text{clip} \left(s\hat{g}_t,\,-g_{\max},\,g_{\max}\right)
+\tilde{g}_t = \text{clip} \left(s\hat{g}_t,-g_{\max},g_{\max}\right)
 $$
 
 where:
