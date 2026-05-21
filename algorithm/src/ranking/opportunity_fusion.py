@@ -167,6 +167,7 @@ def apply_opportunity_fusion(
 
 def build_agent_pitch(site: dict[str, Any]) -> str:
     address = site.get("base_site_address") or site.get("address") or "This property"
+
     strategy_score = _safe_float(site.get("strategy_score"))
     policy_score = _safe_float(site.get("policy_upside_score"))
     policy_band = site.get("policy_signal_band") or "unknown"
@@ -176,74 +177,120 @@ def build_agent_pitch(site: dict[str, Any]) -> str:
     constraint = site.get("constraint_severity_band") or "available constraint"
 
     market_value = _safe_float(site.get("ml_estimated_market_value"))
+    trend_adjusted_market_value = _safe_float(site.get("trend_adjusted_ml_market_value"))
     value_confidence = site.get("ml_value_confidence")
+
     value_score = _safe_float(site.get("value_potential_score"))
     value_band = site.get("value_potential_band")
-    cost_band = site.get("cost_band")
+
     total_cost = _safe_float(site.get("estimated_total_project_cost"))
+    cost_band = site.get("cost_band")
     cost_efficiency = _safe_float(site.get("cost_efficiency_score"))
+
     ranking_profile = site.get("ranking_profile")
     evidence_count = int(_safe_float(site.get("policy_evidence_count"), 0))
 
-    parts = [
-        f"{address} may be attractive to developer or investor buyers because it combines "
-        f"{zoning} zoning, a {lot_band} site profile, and {constraint} identified constraints."
-    ]
+    market_trend_band = site.get("market_trend_band")
+    market_growth = _safe_float(site.get("predicted_market_growth_3m"))
 
+    cost_trend_band = site.get("construction_cost_trend_band")
+    cost_growth = _safe_float(site.get("predicted_construction_cost_growth_qoq"))
+
+    parts: list[str] = []
+
+    # Opening summary
+    parts.append(
+        f"{address} is a strong candidate for further review under the selected strategy. "
+        f"It combines {zoning} zoning, a {lot_band} site profile, and {constraint} identified planning constraints."
+    )
+
+    # Strategy and policy
     if strategy_score > 0:
-        parts.append(f"The requested strategy fit score is {strategy_score:.1f}.")
+        parts.append(
+            f"The strategy fit score is {strategy_score:.1f}, indicating a strong match against the requested development intent."
+        )
 
     if policy_score > 0:
-        parts.append(
-            f"It has a {policy_band} policy signal with a policy upside score of {policy_score:.1f}, "
-            "which may strengthen the redevelopment pitch."
+        policy_sentence = (
+            f"The site also shows a {policy_band} policy signal, with a policy upside score of {policy_score:.1f}."
         )
+
+        if evidence_count > 0:
+            policy_sentence += (
+                f" This is supported by {evidence_count} retrieved NSW Planning evidence snippets from official policy sources."
+            )
+
+        parts.append(policy_sentence)
     else:
         parts.append(
             "No major policy-driven uplift signal was identified from the current structured policy screening rules."
         )
 
-    if evidence_count > 0:
-        parts.append(
-            f"The policy signal is supported by {evidence_count} retrieved NSW Planning evidence snippets from official policy sources."
-        )
-
+    # Market value and local trend
     if market_value > 0:
-        parts.append(
-            f"The ML market value model estimates a typical transaction-level market value in this locality of approximately ${market_value:,.0f}"
-            + (f" with {value_confidence} confidence." if value_confidence else ".")
+        sentence = (
+            f"The ML value model estimates a typical transaction-level market value in this locality of approximately ${market_value:,.0f}"
         )
 
+        if value_confidence:
+            sentence += f" with {value_confidence} confidence"
+
+        if trend_adjusted_market_value > 0 and abs(trend_adjusted_market_value - market_value) > 1:
+            sentence += (
+                f"; after applying the local market trend adjustment, this becomes approximately ${trend_adjusted_market_value:,.0f}"
+            )
+
+        sentence += "."
+        parts.append(sentence)
+
+    if market_trend_band:
+        parts.append(
+            f"Recent local transaction data suggests a {market_trend_band} short-term market trend, "
+            f"with an indicative 3-month movement of {market_growth * 100:.1f}%."
+        )
+
+    # Cost/value and construction trend
     if value_score > 0 and value_band:
         parts.append(
-            f"The cost/value screen rates value potential as {value_band} with a score of {value_score:.1f}."
+            f"The economics screen rates value potential as {value_band}, with a value score of {value_score:.1f}."
         )
 
     if total_cost > 0 and cost_band:
         parts.append(
-            f"Indicative total project cost is approximately ${total_cost:,.0f}, placing it in the {cost_band} cost band."
+            f"The indicative total project cost is approximately ${total_cost:,.0f}, placing it in the {cost_band} cost band."
+        )
+
+    if cost_trend_band:
+        parts.append(
+            f"Construction cost conditions are currently {cost_trend_band}, with an indicative next-quarter cost movement of {cost_growth * 100:.1f}%."
         )
 
     if cost_efficiency > 0:
         parts.append(
-            f"The cost efficiency score is {cost_efficiency:.1f}, reflecting the relationship between estimated project cost and value potential."
+            f"The cost efficiency score is {cost_efficiency:.1f}, reflecting the balance between estimated project cost and redevelopment value potential."
         )
 
+    # Ranking profile explanation
     if ranking_profile == "budget_sensitive":
         parts.append(
-            "Because the ranking profile is budget-sensitive, sites with stronger cost efficiency are prioritised over higher-cost opportunities."
+            "Because the ranking profile is budget-sensitive, this result is assessed more heavily on cost efficiency and capital intensity."
         )
     elif ranking_profile == "policy_upside":
         parts.append(
-            "Because the ranking profile emphasises policy upside, sites with stronger planning-policy signals are prioritised."
+            "Because the ranking profile emphasises policy upside, this result is weighted more heavily toward planning-policy support and redevelopment uplift signals."
         )
     elif ranking_profile == "high_value":
         parts.append(
-            "Because the ranking profile emphasises value potential, sites with stronger market and redevelopment value signals are prioritised."
+            "Because the ranking profile emphasises value potential, this result is weighted more heavily toward market value, redevelopment upside, and site-scale signals."
+        )
+    elif ranking_profile == "balanced":
+        parts.append(
+            "Under the balanced ranking profile, the final score combines strategy fit, policy upside, market value, cost efficiency, and cost risk."
         )
 
+    # Disclaimer
     parts.append(
-        "This is an indicative opportunity screen only and should be verified with planning, valuation, legal, and feasibility advice before being used in a transaction."
+        "This is an indicative opportunity screen only. It should be verified with planning, valuation, legal, and feasibility advice before being used for a transaction or investment decision."
     )
 
     return " ".join(parts)

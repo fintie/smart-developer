@@ -14,6 +14,8 @@ from algorithm.src.economics.development_cost.development_cost_estimator import 
     DevelopmentCostEstimator,
 )
 from algorithm.src.economics.value_model.predict_market_value import MarketValuePredictor
+from algorithm.src.economics.trend.predict_cost_trend import CostTrendPredictor
+from algorithm.src.economics.trend.predict_market_trend import MarketTrendPredictor
 
 
 DEFAULT_LOCALITY_SALES_PATH = Path("data/processed/cost/locality_sales_summary.parquet")
@@ -124,6 +126,9 @@ class EconomicsPipeline:
         locality_sales_path: Path | str = DEFAULT_LOCALITY_SALES_PATH,
         use_ml_market_value: bool = False,
         market_value_predictor: MarketValuePredictor | None = None,
+        use_trend_adjustment: bool = True,
+        market_trend_predictor: MarketTrendPredictor | None = None,
+        cost_trend_predictor: CostTrendPredictor | None = None,
     ):
         self.locality_sales_path = Path(locality_sales_path)
         self.locality_sales = self._load_locality_sales(self.locality_sales_path)
@@ -134,6 +139,16 @@ class EconomicsPipeline:
 
         if self.use_ml_market_value and self.market_value_predictor is None:
             self.market_value_predictor = MarketValuePredictor()
+
+        self.use_trend_adjustment = use_trend_adjustment
+        self.market_trend_predictor = market_trend_predictor
+        self.cost_trend_predictor = cost_trend_predictor
+
+        if self.use_trend_adjustment and self.market_trend_predictor is None:
+            self.market_trend_predictor = MarketTrendPredictor()
+
+        if self.use_trend_adjustment and self.cost_trend_predictor is None:
+            self.cost_trend_predictor = CostTrendPredictor()
 
     def _load_locality_sales(self, path: Path) -> pd.DataFrame:
         if not path.exists():
@@ -230,6 +245,44 @@ class EconomicsPipeline:
         address = site.get("base_site_address") or site.get("address")
         locality, locality_row = self._lookup_locality_row(address)
 
+        market_trend_payload: dict[str, Any] = {}
+        cost_trend_payload: dict[str, Any] = {}
+
+        postcode = ""
+        if locality_row is not None:
+            postcode = str(locality_row.get("postcode", "") or "")
+
+        if self.use_trend_adjustment:
+            if self.market_trend_predictor is not None:
+                try:
+                    market_trend_payload = self.market_trend_predictor.predict(
+                        suburb=locality,
+                        postcode=postcode,
+                    )
+                except Exception as exc:
+                    market_trend_payload = {
+                        "predicted_market_growth_3m": 0.0,
+                        "market_trend_multiplier": 1.0,
+                        "market_trend_score": 50.0,
+                        "market_trend_band": "unavailable",
+                        "market_trend_source": "error",
+                        "market_trend_model": "unavailable",
+                        "market_trend_error": str(exc),
+                    }
+
+            if self.cost_trend_predictor is not None:
+                try:
+                    cost_trend_payload = self.cost_trend_predictor.latest()
+                except Exception as exc:
+                    cost_trend_payload = {
+                        "predicted_construction_cost_growth_qoq": 0.0,
+                        "construction_cost_escalation_multiplier": 1.0,
+                        "construction_cost_trend_score": 50.0,
+                        "construction_cost_trend_band": "unavailable",
+                        "cost_trend_model": "unavailable",
+                        "cost_trend_error": str(exc),
+                    }
+
         enriched_site = dict(site)
         enriched_site["locality"] = locality
 
@@ -259,15 +312,43 @@ class EconomicsPipeline:
         )
 
         ml_market_value = safe_float(ml_value_payload.get("ml_estimated_market_value"), 0.0)
+        market_trend_multiplier = safe_float(
+            market_trend_payload.get("market_trend_multiplier"),
+            1.0,
+        )
+
+        trend_adjusted_market_value = None
+        if ml_market_value > 0:
+            trend_adjusted_market_value = ml_market_value * market_trend_multiplier
 
         acquisition, acquisition_source = _estimate_site_acquisition_proxy(
             strategy=strategy,
             site=enriched_site,
             locality_median=locality_median,
-            ml_market_value=ml_market_value,
+            ml_market_value=trend_adjusted_market_value or ml_market_value,
         )
 
         dev = self.development_cost_estimator.estimate(enriched_site, strategy=strategy)
+        construction_cost_escalation_multiplier = safe_float(
+            cost_trend_payload.get("construction_cost_escalation_multiplier"),
+            1.0,
+        )
+
+        if construction_cost_escalation_multiplier <= 0:
+            construction_cost_escalation_multiplier = 1.0
+
+        if construction_cost_escalation_multiplier != 1.0:
+            for key in [
+                "base_construction_cost",
+                "estimated_development_cost",
+                "estimated_soft_cost",
+                "estimated_contingency",
+            ]:
+                value = safe_float(dev.get(key), 0.0)
+                if value > 0:
+                    dev[key] = round(value * construction_cost_escalation_multiplier, 2)
+
+        dev["trend_adjusted_development_cost"] = dev.get("estimated_development_cost")
 
         development_cost = safe_float(dev.get("estimated_development_cost"), 0.0)
         soft_cost = safe_float(dev.get("estimated_soft_cost"), 0.0)
@@ -345,8 +426,11 @@ class EconomicsPipeline:
             if locality_row is not None
             else None,
             **ml_value_payload,
+            **market_trend_payload,
+            "trend_adjusted_ml_market_value": money_or_none(trend_adjusted_market_value),
             "estimated_acquisition_cost": money_or_none(acquisition),
             "estimated_acquisition_cost_source": acquisition_source,
+            **cost_trend_payload,
             **dev,
             "estimated_total_project_cost": money_or_none(total_project_cost),
             "cost_band": cost_band,

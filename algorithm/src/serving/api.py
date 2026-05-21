@@ -83,6 +83,26 @@ PRODUCT_RESULT_FIELDS = [
     "value_potential_band",
     "cost_value_explanation",
 
+    "predicted_market_growth_3m",
+    "market_trend_multiplier",
+    "market_trend_score",
+    "market_trend_band",
+    "market_trend_source",
+    "market_trend_model",
+    "trend_adjusted_ml_market_value",
+    "market_trend_raw_prediction",
+    "market_trend_scaled_prediction",
+    "market_trend_was_clipped",
+
+    "construction_cost_trend_quarter",
+    "predicted_construction_cost_growth_qoq",
+    "construction_cost_escalation_multiplier",
+    "construction_cost_trend_score",
+    "construction_cost_trend_band",
+    "combined_construction_cost_index",
+    "cost_trend_model",
+    "trend_adjusted_development_cost",
+
     # Explanation/Reporting
     "ranking_profile",
     "fast_explanation",

@@ -1,0 +1,21 @@
+version: "0.1.0"
+
+description: >
+  ABS API sources for construction labour/material cost trend features.
+  URLs should be generated from ABS Data Explorer Developer API tab or manually
+  constructed from ABS Data API.
+
+sources:
+  wpi:
+    description: "ABS Wage Price Index, construction-related series"
+    url: "https://data.api.abs.gov.au/rest/data/ABS,WPI/all?startPeriod=2010-Q1&format=csv"
+    raw_output_csv: "data/raw/economics/abs/wpi_raw.csv"
+    processed_output_parquet: "data/processed/economics/trend/wpi_construction.parquet"
+
+  ppi:
+    description: "ABS Producer Price Indexes, construction-related series"
+    url: "https://data.api.abs.gov.au/rest/data/ABS,PPI/all?startPeriod=2010-Q1&format=csv"
+    raw_output_csv: "data/raw/economics/abs/ppi_raw.csv"
+    processed_output_parquet: "data/processed/economics/trend/ppi_building_construction.parquet"
+
+combined_output_parquet: "data/processed/economics/trend/construction_cost_indices.parquet"
