@@ -11,11 +11,35 @@ env/
 # Jupyter
 .ipynb_checkpoints/
 
-# macOS
+# System
 .DS_Store
-
-# Logs
 *.log
+
+# Outputs
+outputs/
+
+# Raw/intermediate data
+data/raw/
+data/interim/
+
+# Large generated geospatial data, except selected demo candidate table
+data/processed/geospatial/
+data/processed/retrieval/*.parquet
+
+# Processed economics data is ignored by default; selected demo files can be force-added
+data/processed/economics/**/*.parquet
+data/processed/cost/*.parquet
+
+# Large / generated artifacts ignored by default
+algorithm/artifacts/models/**/model.pt
+algorithm/artifacts/models/**/evaluation/
+algorithm/artifacts/models/**/train_triplets_snapshot.parquet
+algorithm/artifacts/retrieval/
+algorithm/artifacts/reranker/
+algorithm/artifacts/feedback/
+
+# Policy index ignored by default; selected demo index can be force-added
+algorithm/artifacts/policy_index/
 
 # Environment / secrets
 .env
@@ -27,26 +51,11 @@ build/
 dist/
 *.egg-info/
 
-# Data
-data/raw/*
-data/cleaned/*
-data/processed/*
-data/interim/*
-
-# Outputs
-outputs/reports/*.pdf
-
 # Keep folder structure
 !data/raw/.gitkeep
 !data/cleaned/.gitkeep
 !data/processed/.gitkeep
 !data/interim/.gitkeep
-
-# Algorithm artifacts
-algorithm/artifacts/models/*
-algorithm/artifacts/scalers/*
-algorithm/artifacts/encoders/*
-algorithm/artifacts/evaluation/*
 
 # Keep folder structure
 !algorithm/artifacts/models/.gitkeep
@@ -75,23 +84,3 @@ rust_data_loaders/nsw_addressing_downloader/target
 
 algorithm/artifacts/reports/*
 !algorithm/artifacts/reports/.gitkeep
-# Local secrets
-.env
-.env.*
-!.env.example
-
-# Python cache
-__pycache__/
-*.py[cod]
-
-# Local data / artifacts
-data/raw/
-data/processed/
-algorithm/artifacts/
-
-# IDE
-.idea/
-.vscode/
-
-# Jupyter
-.ipynb_checkpoints/
