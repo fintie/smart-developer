@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from typing import Any
 
 
@@ -21,6 +20,29 @@ def _yes_no_flag(value: Any) -> bool:
         return int(value) == 1
     except Exception:
         return bool(value)
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
+def _fmt_money(value: Any) -> str | None:
+    amount = _safe_float(value, 0.0)
+    if amount <= 0:
+        return None
+    return f"${amount:,.0f}"
+
+
+def _fmt_percent(value: Any) -> str | None:
+    try:
+        return f"{float(value) * 100:.1f}%"
+    except Exception:
+        return None
 
 
 def _fmt_distance(value: Any) -> str | None:
@@ -122,7 +144,7 @@ def _transport_phrase(site: dict[str, Any]) -> str | None:
     if band == "2km_5km":
         return "the site has moderate station access, which may be less important for some strategies"
 
-    if band == "over_5km" or band == "over_10km":
+    if band in {"over_5km", "over_10km"}:
         return "station access appears weaker and should be considered in market feasibility"
 
     return f"station access is classified as {band}"
@@ -159,6 +181,76 @@ def _constraint_phrases(site: dict[str, Any]) -> tuple[list[str], list[str]]:
     return strengths, risks
 
 
+def _policy_phrase(site: dict[str, Any]) -> str | None:
+    score = _safe_float(site.get("policy_upside_score"), 0.0)
+    band = site.get("policy_signal_band")
+    evidence_count = int(_safe_float(site.get("policy_evidence_count"), 0.0))
+
+    if score <= 0:
+        return None
+
+    phrase = f"policy screening shows a {band or 'detected'} policy signal with an upside score of {score:.1f}"
+
+    if evidence_count > 0:
+        phrase += f", supported by {evidence_count} retrieved NSW Planning evidence snippets"
+
+    return phrase
+
+
+def _economics_phrase(site: dict[str, Any]) -> str | None:
+    value_score = _safe_float(site.get("value_potential_score"), 0.0)
+    value_band = site.get("value_potential_band")
+    cost_efficiency = _safe_float(site.get("cost_efficiency_score"), 0.0)
+    total_cost = _fmt_money(site.get("estimated_total_project_cost"))
+    cost_band = site.get("cost_band")
+
+    chunks: list[str] = []
+
+    if value_score > 0 and value_band:
+        chunks.append(f"value potential is rated {value_band} ({value_score:.1f})")
+
+    if cost_efficiency > 0:
+        chunks.append(f"cost efficiency is {cost_efficiency:.1f}")
+
+    if total_cost and cost_band:
+        chunks.append(f"indicative total project cost is {total_cost} ({cost_band} cost band)")
+
+    if not chunks:
+        return None
+
+    return "; ".join(chunks)
+
+
+def _market_trend_phrase(site: dict[str, Any]) -> str | None:
+    band = site.get("market_trend_band")
+    growth = _fmt_percent(site.get("predicted_market_growth_3m"))
+    trend_value = _fmt_money(site.get("trend_adjusted_ml_market_value"))
+    raw_value = _fmt_money(site.get("ml_estimated_market_value"))
+
+    chunks: list[str] = []
+
+    if band and growth:
+        chunks.append(f"recent transaction data suggests a {band} short-term market trend ({growth} indicative 3-month movement)")
+
+    if raw_value and trend_value:
+        chunks.append(f"ML value estimate adjusts from {raw_value} to {trend_value} after local trend adjustment")
+
+    if not chunks:
+        return None
+
+    return "; ".join(chunks)
+
+
+def _cost_trend_phrase(site: dict[str, Any]) -> str | None:
+    band = site.get("construction_cost_trend_band")
+    growth = _fmt_percent(site.get("predicted_construction_cost_growth_qoq"))
+
+    if band and growth:
+        return f"construction cost conditions are {band}, with an indicative next-quarter movement of {growth}"
+
+    return None
+
+
 def build_template_explanation(site: dict[str, Any], strategy: str) -> str:
     """
     Build a fast deterministic explanation for a ranked site.
@@ -187,6 +279,11 @@ def build_template_explanation(site: dict[str, Any], strategy: str) -> str:
     strengths.extend(constraint_strengths)
     risks.extend(constraint_risks)
 
+    policy = _policy_phrase(site)
+    economics = _economics_phrase(site)
+    market_trend = _market_trend_phrase(site)
+    cost_trend = _cost_trend_phrase(site)
+
     score = site.get("strategy_score")
     score_phrase = None
     try:
@@ -200,6 +297,18 @@ def build_template_explanation(site: dict[str, Any], strategy: str) -> str:
         sentence = f"This site appears suitable for {label} because {strength_text}."
     else:
         sentence = f"This site is a candidate for {label}, but its key feasibility drivers should be reviewed."
+
+    if policy:
+        sentence += f" From a policy perspective, {policy}."
+
+    if economics:
+        sentence += f" The economics screen indicates that {economics}."
+
+    if market_trend:
+        sentence += f" Market trend layer: {market_trend}."
+
+    if cost_trend:
+        sentence += f" Cost trend layer: {cost_trend}."
 
     if risks:
         risk_text = "; ".join(risks[:2])
