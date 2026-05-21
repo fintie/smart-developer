@@ -74,11 +74,7 @@ $$
 \widehat{V}_i=e^{\hat{y}_i}
 $$
 
-In practice, the model output is interpreted as:
-
-$$
-\texttt{ml\_estimated\_market\_value}=\widehat{V}_i
-$$
+In practice, the model output is interpreted as: `ml_estimated_market_value` = $\widehat{V}_i$
 
 Because the data is noisy and property-level information is limited, this is treated as a locality-level transaction value proxy rather than a formal valuation.
 
@@ -107,11 +103,7 @@ Target: `target_growth_3m`
 
 This represents future 3-month log price movement.
 
-For stability, the training target is clipped:
-
-$$
-\texttt{target\_growth\_3m\_clipped}\in[-0.30,0.30]
-$$
+For stability, the training target is clipped: `target_growth_3m_clipped` $\in[-0.30,0.30]$
 
 At inference time, predictions are also scaled and clipped to avoid overreacting to noisy suburb-level transaction data.
 
@@ -190,7 +182,7 @@ Strategies include:
 - assembly opportunity
 - land bank / hold
 
-The setimator uses config-driven assumptions such as:
+The estimator uses config-driven assumptions such as:
 - floor space ratio proxy
 - build cost per square metre
 - strategy complexity multiplier
