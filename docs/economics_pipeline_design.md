@@ -55,6 +55,33 @@ ml_value_error_pct
 ```
 The model is used as a **transaction-level value proxy**, not a formal valuation.
 
+### Mathematical View
+For a site $i$, define its tabular feature vector as $\mathbf{x}_i\in\mathbb{R}^d$. The XGBoost model estimates log market value:
+
+$$
+\hat{y}_y=f_{\text{value}}(\mathbf{x}_i)
+$$
+
+where:
+
+$$
+\hat{y}_i\approx\log(\text{sale price}_i)
+$$
+
+The estimated market value is then:
+
+$$
+\widehat{V}_i=e^{\hat{y}_i}
+$$
+
+In practice, the model output is interpreted as:
+
+$$
+\texttt{ml\_estimated\_market\_value}=\widehat{V}_i
+$$
+
+Because the data is noisy and property-level information is limited, this is treated as a locality-level transaction value proxy rather than a formal valuation.
+
 ## Market Trend Model
 The XGBoost value model gives a current transaction-level value estimate. However, market conditions can change over time. To adjust for short-term local movement, we add a market trend layer.
 
@@ -83,7 +110,7 @@ This represents future 3-month log price movement.
 For stability, the training target is clipped:
 
 $$
-\texttt{target_growth_3m_clipped}\in[-0.30,0.30]
+\texttt{target_growth\_3m_clipped}\in[-0.30,0.30]
 $$
 
 At inference time, predictions are also scaled and clipped to avoid overreacting to noisy suburb-level transaction data.
@@ -95,6 +122,52 @@ prediction_clip = 0.035
 ```
 
 So the final market trend adjustment is capped at approximately $\pm3.5$% over 3 months.
+
+### Mathematical View
+For a suburb-month observation $t$, define the market trend feature vector $\mathbf{z}_t\in\mathbb{R}^p$.
+
+The Ridge regression model estimates:
+
+$$
+\hat{g}_t=\mathbf{w}^\top\mathbf{z}_t+b
+$$
+
+where $\hat{g}_t$ is the estimated 3-month log growth.
+
+The Ridge objective is to estimate:
+
+$$
+(\mathbf{w}^*,b^*)=\underset{\mathbf{w},b}{\text{argmin}}\,\Bigg[\sum_{t=1}^n\Big(g_t-\mathbf{w}^\top\mathbf{z}_t-b\Big)^2+\lambda\lVert\mathbf{w}\rVert_2^2\Bigg]
+$$
+
+where $\lambda>0$ is the regularisation strength.
+
+At inference time, the raw prediction is calibrated:
+
+$$
+\tilde{g}_t = \text{clip} \left(s\hat{g}_t,\,-g_{\max},\,g_{\max}\right)
+$$
+
+where:
+- $s$ = prediction_scale = 0.2
+- $g_{\max}$ = prediction_clip = 0.035
+
+The market trend multiplier is:
+
+$$
+M_t=e^{\tilde{g}_t}
+$$
+
+The trend-adjusted market value is:
+
+$$
+\widehat{V}^{\text{trend}}_i=\widehat{V}_iM_t
+$$
+
+This gives:
+```text
+trend_adjusted_ml_market_value
+```
 
 ### Interpretation
 The market trend model should be interpreted as *short-term local market momentum*, instead of *precise house price forecasting*. The model is deliberately conservative because suburb-level monthly medians can be noisy due to transaction mix.
@@ -208,7 +281,7 @@ $$
 The predicted next-quarter construction cost growth is currently estimated using a smoothed recent growth signal:
 
 $$
-\hat{h}_t = \operatorname{clip} \Bigg(\frac{1}{4} \sum_{j=0}^{3} h_{t-j},\;-0.03,\;0.05 \Bigg)
+\hat{h}_t = \text{clip} \Bigg(\frac{1}{4} \sum_{j=0}^{3} h_{t-j},\;-0.03,\;0.05 \Bigg)
 $$
 
 The construction cost escalation multiplier is:
