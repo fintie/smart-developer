@@ -1,7 +1,5 @@
 from __future__ import annotations
-
-from typing import Any
-
+from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
@@ -9,10 +7,17 @@ class SearchRequest(BaseModel):
     strategy: str = "single_dwelling_rebuild"
     query_text: str
     top_k: int = Field(default=5, ge=1, le=20)
-    recall_k: int = Field(default=1000, ge=10, le=10000)
+    recall_k: int = Field(default=1000, ge=10, le=20000)
 
     locality: str | None = None
     address_contains: str | None = None
+
+    ranking_profile: Literal[
+        "balanced",
+        "policy_upside",
+        "budget_sensitive",
+        "high_value",
+    ] = "balanced"
 
     user_id: str | None = "demo_user"
     session_id: str | None = "frontend_demo"

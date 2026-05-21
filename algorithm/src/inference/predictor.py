@@ -1,14 +1,21 @@
 from __future__ import annotations
-import uuid
+
 import time
-from datetime import datetime, timezone
+import uuid
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from typing import Any
+
 import pandas as pd
-from algorithm.src.retrieval.hybrid_retrieve import HybridRetriever, RetrievalRequest
-from algorithm.src.policy.policy_scorer import PolicyScorer
-from algorithm.src.ranking.opportunity_fusion import apply_opportunity_fusion, add_agent_pitch
+
 from algorithm.src.economics.opportunity.economics_pipeline import EconomicsPipeline
+from algorithm.src.inference import __name__ as _inference_package_name  # noqa: F401
+from algorithm.src.policy.policy_scorer import PolicyScorer
+from algorithm.src.ranking.opportunity_fusion import (
+    add_agent_pitch,
+    apply_opportunity_fusion,
+)
+from algorithm.src.retrieval.hybrid_retrieve import HybridRetriever, RetrievalRequest
 
 
 DEFAULT_RETRIEVAL_MODEL = "two_tower_v1"
@@ -16,37 +23,58 @@ DEFAULT_RERANKING_MODEL = "dcn_reranker_v1"
 DEFAULT_EXPLANATION_MODEL = "llama3.1:8b-instruct-q4_K_M"
 
 
+VALID_RANKING_PROFILES = {
+    "balanced",
+    "policy_upside",
+    "budget_sensitive",
+    "high_value",
+}
+
+
 @dataclass
 class PredictionRequest:
     strategy: str
     query_text: str
+
     top_k: int = 5
-    recall_k: int = 200
+    recall_k: int = 10000
+
     with_explanations: bool = True
+
     retrieval_model: str = DEFAULT_RETRIEVAL_MODEL
     use_dcn_reranker: bool = True
     reranking_model: str = DEFAULT_RERANKING_MODEL
+
     alpha: float = 0.5
     beta: float = 0.5
+
     dedupe_by_address: bool = True
+
     locality: str | None = None
     address_contains: str | None = None
-    location_fallback: bool = True
+
+    # With locality pre-filtering, fallback should usually stay False for product
+    # safety. If a locality has no matching candidate, return empty results rather
+    # than unrelated global recommendations.
+    location_fallback: bool = False
+
     ranking_profile: str = "balanced"
     explanation_model: str = DEFAULT_EXPLANATION_MODEL
 
 
 class SmartDeveloperPredictor:
     """
-    General inference wrapper for the Smart Developer retrieval pipeline.
-
-    Intended usage:
-    - import directly from a Python backend
-    - wrap behind FastAPI / Flask / Django
-    - call from another language through a thin Python bridge
+    Product-facing inference wrapper for Smart Developer.
 
     Current inference stack:
-        two_tower recall -> optional DCN rerank -> dedupe -> optional explanation
+        locality/address candidate pre-filter
+        -> two-tower retrieval
+        -> optional DCN reranking
+        -> dedupe by base site address
+        -> policy scoring + policy RAG evidence
+        -> economics scoring
+        -> opportunity fusion with ranking profiles
+        -> agent-facing pitch generation
     """
 
     def __init__(
@@ -63,7 +91,10 @@ class SmartDeveloperPredictor:
             enable_rag_evidence=True,
             rag_top_k=3,
         )
-        self.economics_pipeline = EconomicsPipeline(use_ml_market_value=True)
+
+        self.economics_pipeline = EconomicsPipeline(
+            use_ml_market_value=True,
+        )
 
         self._retriever_cache: dict[str, HybridRetriever] = {}
 
@@ -71,6 +102,18 @@ class SmartDeveloperPredictor:
         if experiment not in self._retriever_cache:
             self._retriever_cache[experiment] = HybridRetriever(experiment=experiment)
         return self._retriever_cache[experiment]
+
+    @staticmethod
+    def _normalise_ranking_profile(value: str | None) -> str:
+        if value is None:
+            return "balanced"
+
+        profile = str(value).strip().lower()
+
+        if profile not in VALID_RANKING_PROFILES:
+            return "balanced"
+
+        return profile
 
     def _build_request(self, request: PredictionRequest) -> RetrievalRequest:
         return RetrievalRequest(
@@ -91,42 +134,40 @@ class SmartDeveloperPredictor:
         )
 
     @staticmethod
-    def _clean_value(value):
+    def _clean_value(value: Any) -> Any:
         import math
+
         import numpy as np
         import pandas as pd
 
         if value is None:
             return None
 
-        # Keep lists JSON-safe.
         if isinstance(value, list):
             return [SmartDeveloperPredictor._clean_value(v) for v in value]
 
-        # Keep dicts JSON-safe.
+        if isinstance(value, tuple):
+            return [SmartDeveloperPredictor._clean_value(v) for v in value]
+
         if isinstance(value, dict):
             return {
                 str(k): SmartDeveloperPredictor._clean_value(v)
                 for k, v in value.items()
             }
 
-        # Convert numpy scalar types to Python scalar types.
         if isinstance(value, np.generic):
             value = value.item()
 
-        # Convert pandas Timestamp to ISO string.
         if isinstance(value, pd.Timestamp):
             if pd.isna(value):
                 return None
             return value.isoformat()
 
-        # Convert NaN / inf floats.
         if isinstance(value, float):
             if math.isnan(value) or math.isinf(value):
                 return None
             return value
 
-        # Only call pd.isna on scalar-like values.
         try:
             if pd.isna(value):
                 return None
@@ -135,9 +176,9 @@ class SmartDeveloperPredictor:
 
         return value
 
-    def _clean_records(self, df: pd.DataFrame) -> list[dict]:
+    def _clean_records(self, df: pd.DataFrame) -> list[dict[str, Any]]:
         records = df.to_dict(orient="records")
-        cleaned = []
+        cleaned: list[dict[str, Any]] = []
 
         for row in records:
             cleaned.append(
@@ -154,42 +195,29 @@ class SmartDeveloperPredictor:
         request_id = f"req_{uuid.uuid4().hex[:12]}"
         created_at = datetime.now(timezone.utc).isoformat()
 
-        retriever = self._get_retriever(request.retrieval_model)
-
-        retrieval_request = RetrievalRequest(
-            strategy=request.strategy,
-            query_text=request.query_text,
-            top_k=request.top_k,
-            recall_k=request.recall_k,
-            alpha=request.alpha,
-            beta=request.beta,
-            dedupe_by_address=request.dedupe_by_address,
-            attach_explanations=request.with_explanations,
-            explanation_model=request.explanation_model,
-            use_dcn_reranker=request.use_dcn_reranker,
-            dcn_experiment=request.reranking_model,
-            locality=request.locality,
-            address_contains=request.address_contains,
+        request.ranking_profile = self._normalise_ranking_profile(
+            request.ranking_profile
         )
+
+        retriever = self._get_retriever(request.retrieval_model)
+        retrieval_request = self._build_request(request)
 
         results_df = retriever.retrieve(retrieval_request)
 
-        location_metadata = {
-            "location_filter_requested": results_df.attrs.get("location_filter_requested", False),
-            "exact_location_match_count": results_df.attrs.get("exact_location_match_count"),
-            "location_fallback_used": results_df.attrs.get("location_fallback_used", False),
-            "location_warning": results_df.attrs.get("location_warning"),
-        }
+        # New locality pre-filter metadata from HybridRetriever.
+        location_metadata = dict(results_df.attrs.get("location_metadata", {}))
 
         if not results_df.empty:
             results_df = self.policy_scorer.score_dataframe(
                 results_df,
                 strategy=request.strategy,
             )
+
             results_df = self.economics_pipeline.score_dataframe(
                 results_df,
                 strategy=request.strategy,
             )
+
             results_df = apply_opportunity_fusion(
                 results_df,
                 ranking_profile=request.ranking_profile,
@@ -200,56 +228,74 @@ class SmartDeveloperPredictor:
 
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
+        metadata: dict[str, Any] = {
+            "strategy": request.strategy,
+            "query_text": request.query_text,
+            "top_k": request.top_k,
+            "recall_k": request.recall_k,
+            "retrieval_model": request.retrieval_model,
+            "reranking_model": request.reranking_model,
+            "use_dcn_reranker": request.use_dcn_reranker,
+            "with_explanations": request.with_explanations,
+            "dedupe_by_address": request.dedupe_by_address,
+            "locality": request.locality,
+            "address_contains": request.address_contains,
+            "location_fallback": request.location_fallback,
+            "ranking_profile": request.ranking_profile,
+            "policy_scoring_enabled": True,
+            "policy_rag_enabled": True,
+            "economics_enabled": True,
+            "ml_market_value_enabled": True,
+            "opportunity_fusion_enabled": True,
+            "ranking_mode": "policy_economics_aware_agent_opportunity",
+            "latency_ms": latency_ms,
+            "result_count": len(records),
+        }
+
+        metadata.update(location_metadata)
+
         return {
             "request_id": request_id,
             "created_at": created_at,
             "request": asdict(request),
-            "metadata": {
-                "strategy": request.strategy,
-                "query_text": request.query_text,
-                "top_k": request.top_k,
-                "recall_k": request.recall_k,
-                "retrieval_model": request.retrieval_model,
-                "reranking_model": request.reranking_model,
-                "use_dcn_reranker": request.use_dcn_reranker,
-                "with_explanations": request.with_explanations,
-                "dedupe_by_address": request.dedupe_by_address,
-                "locality": request.locality,
-                "address_contains": request.address_contains,
-                **location_metadata,
-                "ranking_profile": request.ranking_profile,
-                "policy_scoring_enabled": True,
-                "opportunity_fusion_enabled": True,
-                "ranking_mode": "policy_aware_agent_opportunity",
-                "latency_ms": latency_ms,
-                "result_count": len(records),
-            },
+            "metadata": metadata,
             "result_count": len(records),
             "results": records,
         }
 
     def predict_from_dict(self, payload: dict[str, Any]) -> dict[str, Any]:
         request = PredictionRequest(
-            strategy=payload["strategy"],
-            query_text=payload["query_text"],
+            strategy=str(payload["strategy"]),
+            query_text=str(payload["query_text"]),
             top_k=int(payload.get("top_k", 5)),
-            recall_k=int(payload.get("recall_k", 200)),
+            recall_k=int(payload.get("recall_k", 10000)),
             with_explanations=bool(payload.get("with_explanations", True)),
             retrieval_model=str(
-                payload.get("retrieval_experiment", self.default_retrieval_model)
+                payload.get("retrieval_model")
+                or payload.get("retrieval_experiment")
+                or self.default_retrieval_model
             ),
             use_dcn_reranker=bool(payload.get("use_dcn_reranker", True)),
-            reranking_model=str(payload.get("dcn_experiment", self.default_reranking_model)),
+            reranking_model=str(
+                payload.get("reranking_model")
+                or payload.get("dcn_experiment")
+                or self.default_reranking_model
+            ),
             alpha=float(payload.get("alpha", 0.5)),
             beta=float(payload.get("beta", 0.5)),
             dedupe_by_address=bool(payload.get("dedupe_by_address", True)),
             locality=payload.get("locality"),
             address_contains=payload.get("address_contains"),
-            ranking_profile=str(payload.get("ranking_profile", "balanced")),
+            location_fallback=bool(payload.get("location_fallback", False)),
+            ranking_profile=self._normalise_ranking_profile(
+                str(payload.get("ranking_profile", "balanced"))
+            ),
             explanation_model=str(
-                payload.get("explanation_model", self.default_explanation_model)
+                payload.get("explanation_model")
+                or self.default_explanation_model
             ),
         )
+
         return self.predict(request)
 
 
@@ -258,8 +304,10 @@ _DEFAULT_PREDICTOR: SmartDeveloperPredictor | None = None
 
 def get_default_predictor() -> SmartDeveloperPredictor:
     global _DEFAULT_PREDICTOR
+
     if _DEFAULT_PREDICTOR is None:
         _DEFAULT_PREDICTOR = SmartDeveloperPredictor()
+
     return _DEFAULT_PREDICTOR
 
 
@@ -267,7 +315,7 @@ def retrieve_sites(
     strategy: str,
     query_text: str,
     top_k: int = 5,
-    recall_k: int = 200,
+    recall_k: int = 10000,
     with_explanations: bool = True,
     retrieval_model: str = DEFAULT_RETRIEVAL_MODEL,
     use_dcn_reranker: bool = True,
@@ -277,12 +325,15 @@ def retrieve_sites(
     dedupe_by_address: bool = True,
     locality: str | None = None,
     address_contains: str | None = None,
+    location_fallback: bool = False,
+    ranking_profile: str = "balanced",
     explanation_model: str = DEFAULT_EXPLANATION_MODEL,
 ) -> dict[str, Any]:
     """
-    Convenience function for direct backend usage.
+    Convenience function for direct Python usage.
     """
     predictor = get_default_predictor()
+
     request = PredictionRequest(
         strategy=strategy,
         query_text=query_text,
@@ -297,6 +348,9 @@ def retrieve_sites(
         dedupe_by_address=dedupe_by_address,
         locality=locality,
         address_contains=address_contains,
+        location_fallback=location_fallback,
+        ranking_profile=ranking_profile,
         explanation_model=explanation_model,
     )
+
     return predictor.predict(request)

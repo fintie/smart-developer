@@ -288,6 +288,84 @@ class HybridRetriever:
 
         return filtered
 
+    def _build_candidate_pool(
+        self,
+        request: RetrievalRequest,
+    ) -> tuple[pd.DataFrame, np.ndarray, dict[str, Any]]:
+        """
+        Build retrieval candidate pool before semantic retrieval.
+
+        This is important for locality search:
+        - old behaviour: retrieve global top recall_k, then filter by locality
+        - new behaviour: filter candidate pool by locality first, then retrieve within it
+
+        This prevents suburbs/localities from disappearing simply because they were
+        not present in the global top recall_k semantic pool.
+        """
+        pool = self.candidates
+        pool_embeddings = self.candidate_embeddings
+        metadata: dict[str, Any] = {
+            "location_prefilter_applied": False,
+            "location_prefilter_original_candidate_count": int(len(self.candidates)),
+            "location_prefilter_candidate_count": int(len(self.candidates)),
+            "location_prefilter_warning": None,
+        }
+
+        masks: list[pd.Series] = []
+
+        if request.address_contains:
+            pattern = str(request.address_contains).strip()
+            if pattern:
+                address_mask = pool["address"].fillna("").astype(str).str.contains(
+                    pattern,
+                    case=False,
+                    regex=False,
+                )
+                masks.append(address_mask)
+
+        if request.locality:
+            locality = str(request.locality).strip()
+            if locality:
+                locality_mask = pool["address"].fillna("").astype(str).str.contains(
+                    locality,
+                    case=False,
+                    regex=False,
+                )
+
+                if "base_site_address" in pool.columns:
+                    locality_mask = locality_mask | pool["base_site_address"].fillna("").astype(str).str.contains(
+                        locality,
+                        case=False,
+                        regex=False,
+                    )
+
+                masks.append(locality_mask)
+
+        if not masks:
+            return pool, pool_embeddings, metadata
+
+        combined_mask = masks[0].copy()
+        for mask in masks[1:]:
+            combined_mask = combined_mask & mask
+
+        matched_positions = np.flatnonzero(combined_mask.to_numpy())
+
+        metadata["location_prefilter_applied"] = True
+        metadata["location_prefilter_candidate_count"] = int(len(matched_positions))
+
+        if len(matched_positions) == 0:
+            metadata["location_prefilter_warning"] = (
+                "No candidates matched the requested locality/address filter. "
+                "Returning an empty result set instead of falling back to unrelated global candidates."
+            )
+            return pool.iloc[[]].copy(), pool_embeddings[:0], metadata
+
+        return (
+            pool.iloc[matched_positions].copy(),
+            pool_embeddings[matched_positions],
+            metadata,
+        )
+
     def retrieve(self, request: RetrievalRequest) -> pd.DataFrame:
         strategy = request.strategy
         score_col = score_col_for_strategy(strategy)
@@ -295,26 +373,28 @@ class HybridRetriever:
         if score_col not in self.candidates.columns:
             raise KeyError(f"Missing score column '{score_col}' in candidate table.")
 
-        query_emb = self._encode_query(request.query_text)
-        sims = self.candidate_embeddings @ query_emb
+        candidate_pool, candidate_pool_embeddings, location_metadata = (
+            self._build_candidate_pool(request)
+        )
 
-        recall_k = min(request.recall_k, len(self.candidates))
+        if len(candidate_pool) == 0:
+            empty = pd.DataFrame()
+            empty.attrs["location_metadata"] = location_metadata
+            return empty
+
+        query_emb = self._encode_query(request.query_text)
+        sims = candidate_pool_embeddings @ query_emb
+
+        recall_k = min(request.recall_k, len(candidate_pool))
         top_idx = np.argsort(-sims)[:recall_k]
 
-        recalled = self.candidates.iloc[top_idx].copy()
+        recalled = candidate_pool.iloc[top_idx].copy()
         recalled["retrieval_similarity"] = sims[top_idx]
 
-        unfiltered_recalled = recalled.copy()
-        recalled = self._apply_location_filters(recalled, request)
-
-        if len(recalled) == 0:
-            print(
-                "[Location filter warning] No candidates remained after filtering. "
-                "Falling back to unfiltered recall pool."
+        if len(recalled) < request.top_k:
+            location_metadata["location_prefilter_warning"] = (
+                f"Only {len(recalled)} candidates were available after locality/address pre-filtering."
             )
-            recalled = unfiltered_recalled
-        elif len(recalled) < request.top_k:
-            print(f"[Location filter warning] Only {len(recalled)} candidates remained after filtering.")
 
         recalled["strategy_score"] = recalled[score_col].astype(float)
         recalled["sim_norm"] = minmax_norm(recalled["retrieval_similarity"].astype(float))
@@ -399,7 +479,10 @@ class HybridRetriever:
         ordered_cols = [c for c in preferred_cols if c in reranked.columns] + [
             c for c in reranked.columns if c not in preferred_cols
         ]
-        return reranked[ordered_cols]
+
+        result = reranked[ordered_cols].copy()
+        result.attrs["location_metadata"] = location_metadata
+        return result
 
     def retrieve_as_dicts(self, request: RetrievalRequest) -> list[dict[str, Any]]:
         df = self.retrieve(request)
@@ -536,6 +619,8 @@ def main() -> None:
     parser.add_argument("--alpha", type=float, default=0.5)
     parser.add_argument("--beta", type=float, default=0.5)
     parser.add_argument("--no-dedupe", action="store_true")
+    parser.add_argument("--use-dcn-reranker", action="store_true")
+    parser.add_argument("--dcn-experiment", default="dcn_reranker_v1")
     parser.add_argument("--with-explanations", action="store_true")
     parser.add_argument("--explanation-model", default="llama3.1:8b-instruct-q4_K_M")
     parser.add_argument("--full", action="store_true")

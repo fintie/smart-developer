@@ -10,6 +10,12 @@ import "./App.css";
 import "leaflet/dist/leaflet.css";
 import { ResultsMap } from "./components/ResultsMap";
 
+type RankingProfile =
+  | "balanced"
+  | "policy_upside"
+  | "budget_sensitive"
+  | "high_value";
+
 const STRATEGIES = [
   {
     value: "single_dwelling_rebuild",
@@ -37,14 +43,64 @@ const STRATEGIES = [
   },
 ];
 
+const RANKING_PROFILES: Array<{
+  value: RankingProfile;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "balanced",
+    label: "Balanced",
+    description: "Balances strategy fit, policy upside, value, and cost.",
+  },
+  {
+    value: "policy_upside",
+    label: "Policy Upside",
+    description: "Prioritises sites with stronger planning-policy signals.",
+  },
+  {
+    value: "budget_sensitive",
+    label: "Budget Sensitive",
+    description: "Prioritises lower-cost and more cost-efficient opportunities.",
+  },
+  {
+    value: "high_value",
+    label: "High Value",
+    description: "Prioritises sites with stronger market and redevelopment value signals.",
+  },
+];
+
 function formatNumber(value: unknown, digits = 1) {
   if (typeof value !== "number" || Number.isNaN(value)) return "N/A";
   return value.toFixed(digits);
 }
 
+function formatMoney(value?: number | null) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "N/A";
+
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatScore(value?: number | null) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "N/A";
+  return value.toFixed(1);
+}
+
 function formatDistance(value: unknown) {
   if (typeof value !== "number" || Number.isNaN(value)) return "N/A";
   return `${Math.round(value)} m`;
+}
+
+function formatProfileLabel(value?: string | null) {
+  if (!value) return "N/A";
+  return (
+    RANKING_PROFILES.find((profile) => profile.value === value)?.label ??
+    value.replaceAll("_", " ")
+  );
 }
 
 function SiteCard({
@@ -59,8 +115,10 @@ function SiteCard({
   onFeedback: (eventType: string, site: SiteResult, index: number) => void;
 }) {
   const address = site.base_site_address || site.address || "Unknown address";
+
   const explanation =
     site.agent_pitch ||
+    site.cost_value_explanation ||
     site.policy_explanation ||
     site.fast_explanation ||
     site.explanation ||
@@ -73,9 +131,12 @@ function SiteCard({
           <div className="rank">#{index + 1}</div>
           <h3>{address}</h3>
         </div>
+
         <div className="score-box">
           <span>Opportunity</span>
-          <strong>{formatNumber(site.agent_opportunity_score ?? site.strategy_score)}</strong>
+          <strong>
+            {formatNumber(site.agent_opportunity_score ?? site.strategy_score)}
+          </strong>
         </div>
       </div>
 
@@ -91,6 +152,9 @@ function SiteCard({
             : "N/A"}
         </span>
         <span>
+          Profile: {formatProfileLabel(site.ranking_profile)}
+        </span>
+        <span>
           Map:{" "}
           {typeof site.latitude === "number" && typeof site.longitude === "number"
             ? `${site.latitude.toFixed(4)}, ${site.longitude.toFixed(4)}`
@@ -98,9 +162,107 @@ function SiteCard({
         </span>
       </div>
 
+      <div className="meta-grid">
+        <div>
+          <span>Opportunity</span>
+          <strong>{formatScore(site.agent_opportunity_score ?? site.strategy_score)}</strong>
+        </div>
+        <div>
+          <span>Strategy fit</span>
+          <strong>{formatScore(site.strategy_score)}</strong>
+        </div>
+        <div>
+          <span>Policy upside</span>
+          <strong>
+            {formatScore(site.policy_upside_score)}
+            {site.policy_signal_band ? ` · ${site.policy_signal_band}` : ""}
+          </strong>
+        </div>
+        <div>
+          <span>Value potential</span>
+          <strong>
+            {formatScore(site.value_potential_score)}
+            {site.value_potential_band ? ` · ${site.value_potential_band}` : ""}
+          </strong>
+        </div>
+        <div>
+          <span>Cost efficiency</span>
+          <strong>{formatScore(site.cost_efficiency_score)}</strong>
+        </div>
+        <div>
+          <span>Cost risk</span>
+          <strong>
+            {formatScore(site.cost_risk_score)}
+            {site.cost_band ? ` · ${site.cost_band}` : ""}
+          </strong>
+        </div>
+      </div>
+
+      <div className="economics-box">
+        <div className="section-title">Economics</div>
+
+        <div className="economics-grid">
+          <div>
+            <span>ML transaction value: </span>
+            <strong>{formatMoney(site.ml_estimated_market_value)}</strong>
+          </div>
+          <div>
+            <span>Site acquisition proxy: </span>
+            <strong>{formatMoney(site.estimated_acquisition_cost)}</strong>
+          </div>
+          <div>
+            <span>Development cost: </span>
+            <strong>{formatMoney(site.estimated_development_cost)}</strong>
+          </div>
+          <div>
+            <span>Total project cost: </span>
+            <strong>{formatMoney(site.estimated_total_project_cost)}</strong>
+          </div>
+        </div>
+
+        {site.ml_value_confidence && (
+          <p className="small-note">
+            ML value confidence: {site.ml_value_confidence}
+            {typeof site.ml_value_error_pct === "number"
+              ? ` · median error approx ${(site.ml_value_error_pct * 100).toFixed(1)}%`
+              : ""}
+          </p>
+        )}
+      </div>
+
       <p className="explanation">{explanation}</p>
 
-      <div className="meta-grid">
+      {site.policy_evidence && site.policy_evidence.length > 0 && (
+        <details className="policy-evidence">
+          <summary>
+            Policy evidence ({site.policy_evidence.length})
+          </summary>
+
+          <div className="policy-evidence-list">
+            {site.policy_evidence.map((evidence, evidenceIndex) => (
+              <div key={evidenceIndex} className="policy-evidence-item">
+                <strong>
+                  {evidence.policy_name || evidence.policy_id || "Policy source"}
+                </strong>
+
+                {evidence.snippet && <p>{evidence.snippet}</p>}
+
+                {evidence.source_url && (
+                  <a
+                    href={evidence.source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open source
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      <div className="meta-grid compact">
         <div>
           <span>Top strategy</span>
           <strong>{site.top_strategy ?? "N/A"}</strong>
@@ -137,6 +299,8 @@ function App() {
   const [queryText, setQueryText] = useState(STRATEGIES[0].query);
   const [locality, setLocality] = useState("");
   const [topK, setTopK] = useState(5);
+  const [rankingProfile, setRankingProfile] =
+    useState<RankingProfile>("balanced");
 
   const [loading, setLoading] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState("");
@@ -148,6 +312,13 @@ function App() {
   const selectedStrategyLabel = useMemo(() => {
     return STRATEGIES.find((item) => item.value === strategy)?.label ?? strategy;
   }, [strategy]);
+
+  const selectedRankingProfile = useMemo(() => {
+    return (
+      RANKING_PROFILES.find((profile) => profile.value === rankingProfile) ??
+      RANKING_PROFILES[0]
+    );
+  }, [rankingProfile]);
 
   function handleStrategyChange(value: string) {
     setStrategy(value);
@@ -169,11 +340,12 @@ function App() {
         strategy,
         query_text: queryText,
         top_k: topK,
-        recall_k: 1000,
+        recall_k: 10000,
         locality: locality.trim() ? locality.trim().toUpperCase() : null,
         address_contains: null,
         with_explanations: false,
         use_template_explanations: true,
+        ranking_profile: rankingProfile,
         log_request: true,
         debug: false,
         user_id: "demo_user",
@@ -203,6 +375,9 @@ function App() {
         event_value: {
           address: site.base_site_address || site.address,
           strategy_score: site.strategy_score,
+          agent_opportunity_score: site.agent_opportunity_score,
+          ranking_profile: site.ranking_profile,
+          cost_efficiency_score: site.cost_efficiency_score,
         },
         user_note: null,
         user_id: "demo_user",
@@ -245,6 +420,10 @@ function App() {
 
   const latency = searchResponse?.metadata?.latency_ms;
   const resultCount = searchResponse?.results?.length ?? 0;
+  const responseProfile =
+    typeof searchResponse?.metadata?.ranking_profile === "string"
+      ? searchResponse.metadata.ranking_profile
+      : "";
 
   return (
     <main className="page">
@@ -253,8 +432,8 @@ function App() {
           <p className="eyebrow">NextGenius · Smart Developer</p>
           <h1>AI Site Recommendation Platform</h1>
           <p className="subtitle">
-            Search development sites, capture feedback, and generate reports from the
-            logged ML pipeline.
+            Search development sites with policy-aware ranking, economics-aware
+            scoring, ML market value estimates, and agent-facing explanations.
           </p>
         </div>
 
@@ -287,9 +466,30 @@ function App() {
             <input
               value={locality}
               onChange={(event) => setLocality(event.target.value)}
-              placeholder="e.g. WAITARA, GYMEA BAY"
+              placeholder="e.g. WOLLI CREEK, WAITARA, GYMEA BAY"
             />
           </label>
+
+          <label>
+            Ranking Profile
+            <select
+              value={rankingProfile}
+              onChange={(event) =>
+                setRankingProfile(event.target.value as RankingProfile)
+              }
+            >
+              {RANKING_PROFILES.map((profile) => (
+                <option key={profile.value} value={profile.value}>
+                  {profile.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="profile-note">
+            <strong>{selectedRankingProfile.label}:</strong>{" "}
+            {selectedRankingProfile.description}
+          </div>
 
           <label>
             Top K
@@ -318,8 +518,8 @@ function App() {
           <div className="demo-note">
             <strong>Current mode:</strong>
             <br />
-            Warm FastAPI inference + DCN reranking + deterministic template explanation +
-            Postgres logging.
+            Two-tower retrieval + DCN reranking + NSW policy RAG + ML market value
+            model + development cost and cost-efficiency scoring.
           </div>
         </aside>
 
@@ -328,6 +528,11 @@ function App() {
             <div>
               <p className="eyebrow">Results</p>
               <h2>{selectedStrategyLabel}</h2>
+              {responseProfile && (
+                <p className="result-profile">
+                  Ranking profile: {formatProfileLabel(responseProfile)}
+                </p>
+              )}
             </div>
 
             {searchResponse && (
@@ -349,7 +554,9 @@ function App() {
               </div>
               <div>
                 <span>Latency</span>
-                <strong>{typeof latency === "number" ? `${latency.toFixed(1)} ms` : "N/A"}</strong>
+                <strong>
+                  {typeof latency === "number" ? `${latency.toFixed(1)} ms` : "N/A"}
+                </strong>
               </div>
               <div>
                 <span>Logging</span>
@@ -372,10 +579,10 @@ function App() {
             </div>
           )}
 
-          {searchResponse && !loading && searchResponse.results.length == 0 && (
+          {searchResponse && !loading && searchResponse.results.length === 0 && (
             <div className="empty-state">
-              No exact matches found for this locality. Try removing the locality filter or
-              using a nearby Suburb.
+              No exact matches found for this locality. Try removing the locality
+              filter or using a nearby suburb.
             </div>
           )}
 

@@ -378,3 +378,79 @@ textarea:focus {
   box-shadow: 0 12px 32px rgba(23, 32, 51, 0.06);
   overflow: hidden;
 }
+
+/* Result area: force left-aligned dashboard layout */
+.results-panel,
+.results-panel *,
+.site-list,
+.site-card,
+.site-card *,
+.site-card-header,
+.explanation,
+.meta-grid,
+.tag-row,
+.policy-evidence,
+details,
+summary {
+  text-align: left;
+}
+
+/* Keep only the main opportunity score badge centered */
+.score-box,
+.score-box * {
+  text-align: center;
+}
+
+/* Search panel can remain visually centered where needed */
+.search-panel h2 {
+  text-align: center;
+}
+
+/* Make result cards read like normal product cards */
+.site-card {
+  text-align: left;
+}
+
+.site-card h3 {
+  text-align: left;
+}
+
+.explanation {
+  text-align: left;
+  max-width: none;
+}
+
+/* Economics / policy evidence blocks, if they use generic divs */
+.site-card details {
+  text-align: left;
+}
+
+.site-card details summary {
+  text-align: left;
+}
+
+.site-card details p,
+.site-card details div,
+.site-card details a {
+  text-align: left;
+}
+
+/* Meta score grid should be left-aligned */
+.meta-grid div,
+.meta-grid span,
+.meta-grid strong {
+  text-align: left;
+}
+
+/* Tag row remains horizontal and left aligned */
+.tag-row {
+  justify-content: flex-start;
+}
+
+/* If economics block was added without a class, this prevents inherited centering */
+.site-card .economics,
+.site-card .economics *,
+.site-card .policy-evidence,
+.site-card .policy-evidence * {
+  text-align: left;
+}

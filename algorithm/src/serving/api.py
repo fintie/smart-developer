@@ -105,7 +105,7 @@ class RetrieveSitesPayload(BaseModel):
     query_text: str
 
     top_k: int = Field(default=5, ge=1, le=50)
-    recall_k: int = Field(default=1000, ge=10, le=10000)
+    recall_k: int = Field(default=1000, ge=10, le=20000)
 
     with_explanations: bool = False
     use_template_explanations: bool = True
@@ -177,7 +177,7 @@ def _warmup_predictor(predictor: SmartDeveloperPredictor) -> float:
             "with high development zoning, a large site, and limited planning constraints."
         ),
         top_k=1,
-        recall_k=1000,
+        recall_k=10000,
         with_explanations=False,
         retrieval_model=DEFAULT_RETRIEVAL_MODEL,
         use_dcn_reranker=True,

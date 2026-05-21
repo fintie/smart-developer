@@ -8,6 +8,7 @@ export type SearchPayload = {
   recall_k: number;
   locality?: string | null;
   address_contains?: string | null;
+  ranking_profile?: "balanced" | "policy_upside" | "budget_sensitive" | "high_value";
   with_explanations: boolean;
   use_template_explanations: boolean;
   log_request: boolean;
@@ -20,13 +21,13 @@ export type SiteResult = {
   RID?: string | number;
   address?: string;
   base_site_address?: string;
+
   latitude?: number;
   longitude?: number;
   geometry_type?: string;
   geocode_source?: string;
-  geocode_confidence?: string;
-  agent_opportunity_score?: number;
-  agent_rank_position?: number;
+  geocode_confidence?: number;
+
   primary_zoning_code?: string;
   primary_zoning_class?: string;
   zoning_band?: string;
@@ -39,19 +40,58 @@ export type SiteResult = {
   heritage_flag?: boolean;
   flood_flag?: boolean;
   bushfire_flag?: boolean;
+
   top_strategy?: string;
   top_strategy_score?: number;
   strategy_score?: number;
+
+  agent_opportunity_score?: number;
+  agent_rank_position?: number;
+  ranking_profile?: string;
+
   policy_upside_score?: number;
   policy_signal_band?: string;
   policy_matched_rules?: string[];
   policy_matched_policies?: string[];
   policy_matched_policy_names?: string[];
   policy_explanation?: string;
-  retrieval_similarity?: number;
-  fusion_score?: number;
-  dcn_prob?: number;
-  dcn_rank_score?: number;
+  policy_evidence_count?: number;
+  policy_evidence?: Array<{
+    policy_id?: string;
+    policy_name?: string;
+    source_url?: string;
+    snippet?: string;
+    relevance_score?: number;
+  }>;
+
+  locality?: string;
+  locality_median_sale_price?: number;
+  locality_sales_count?: number;
+  locality_price_confidence?: string;
+
+  ml_estimated_market_value?: number;
+  ml_value_lower_bound?: number;
+  ml_value_upper_bound?: number;
+  ml_value_error_pct?: number;
+  ml_value_confidence?: string;
+  ml_value_model?: string;
+
+  estimated_acquisition_cost?: number;
+  estimated_acquisition_cost_source?: string;
+  gross_floor_area_proxy_sqm?: number;
+  base_construction_cost?: number;
+  estimated_development_cost?: number;
+  estimated_soft_cost?: number;
+  estimated_contingency?: number;
+  estimated_total_project_cost?: number;
+
+  cost_band?: string;
+  cost_risk_score?: number;
+  cost_efficiency_score?: number;
+  value_potential_score?: number;
+  value_potential_band?: string;
+  cost_value_explanation?: string;
+
   fast_explanation?: string;
   explanation?: string;
   agent_pitch?: string;
