@@ -213,7 +213,9 @@ def _policy_evidence_lines(row: pd.Series, max_items: int = 3) -> list[str]:
         if policy_id:
             line += f" (`{policy_id}`)"
         if snippet:
-            line += f": {str(snippet).strip()[:350]}"
+            clean_snippet = " ".join(str(snippet).strip().split())
+            clean_snippet = clean_snippet.replace("keyboard_arrow_down", "")
+            line += f": {clean_snippet[:220]}"
         if url:
             line += f" Source: {url}"
         lines.append(line)
@@ -457,30 +459,35 @@ def build_site_report(
             lines.append("")
 
             lines.append("**Key strengths:**")
+            lines.append("")
             for strength in _site_strengths(row, strategy):
                 lines.append(f"- {strength}")
             lines.append("")
 
             if config.include_policy:
                 lines.append("**Policy and planning signal:**")
+                lines.append("")
                 for item in _policy_summary(row):
                     lines.append(f"- {item}")
                 lines.append("")
 
                 if config.include_policy_evidence:
                     lines.append("**Retrieved policy evidence:**")
+                    lines.append("")
                     for item in _policy_evidence_lines(row):
                         lines.append(f"- {item}")
                     lines.append("")
 
             if config.include_economics:
                 lines.append("**Economics and feasibility:**")
+                lines.append("")
                 for item in _economics_summary(row):
                     lines.append(f"- {item}")
                 lines.append("")
 
             if config.include_risks:
                 lines.append("**Risks / checks:**")
+                lines.append("")
                 for risk in _risk_summary(row):
                     lines.append(f"- {risk}")
                 lines.append("")

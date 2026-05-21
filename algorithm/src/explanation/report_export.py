@@ -1,6 +1,5 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Iterable
 import markdown as md
 from bs4 import BeautifulSoup
 from reportlab.lib import colors
@@ -130,12 +129,18 @@ def _table_from_html(table_tag, styles: dict[str, ParagraphStyle]) -> Table:
     ]
 
     col_count = max(len(row) for row in rows)
+    usable_width = A4[0] - 4 * cm
 
-    # Reasonable widths for the current report table.
+    # New economics/policy report tables can have many columns.
+    # Keep the site column wider and distribute the remaining width.
     if col_count == 6:
         col_widths = [6.0 * cm, 1.4 * cm, 1.5 * cm, 2.6 * cm, 2.0 * cm, 2.0 * cm]
+    elif col_count >= 10:
+        site_width = 4.2 * cm
+        remaining_width = usable_width - site_width
+        other_width = remaining_width / max(col_count - 1, 1)
+        col_widths = [site_width] + [other_width] * (col_count - 1)
     else:
-        usable_width = A4[0] - 4 * cm
         col_widths = [usable_width / col_count] * col_count
 
     table = Table(wrapped_rows, colWidths=col_widths, repeatRows=1)
@@ -147,7 +152,7 @@ def _table_from_html(table_tag, styles: dict[str, ParagraphStyle]) -> Table:
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("FONTSIZE", (0, 0), (-1, -1), 7 if col_count >= 10 else 8),
                 ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 4),
