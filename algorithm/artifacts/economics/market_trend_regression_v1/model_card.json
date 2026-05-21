@@ -1,0 +1,48 @@
+{
+  "model_name": "rolling_ridge_market_trend_v1",
+  "model_type": "Ridge regression with rolling-window walk-forward validation",
+  "purpose": "Estimate short-term suburb-level market momentum from recent transaction patterns. The model is used as a trend adjustment signal, not as a formal property price forecast.",
+  "training_data": "data/processed/economics/trend/suburb_monthly_market.parquet",
+  "features": [
+    "sales_count",
+    "median_sale_price",
+    "log_median_sale_price",
+    "growth_1m",
+    "growth_3m",
+    "rolling_median_3m",
+    "rolling_median_6m",
+    "rolling_sales_count_3m",
+    "rolling_sales_count_6m",
+    "lag_growth_1m_1",
+    "lag_growth_1m_2",
+    "lag_growth_1m_3",
+    "lag_growth_3m_1",
+    "lag_growth_3m_2",
+    "lag_growth_3m_3",
+    "lag_log_price_1",
+    "lag_log_price_2",
+    "lag_log_price_3",
+    "lag_sales_count_1",
+    "lag_sales_count_2",
+    "lag_sales_count_3",
+    "rolling_growth_1m_mean_3",
+    "rolling_growth_3m_mean_3",
+    "rolling_sales_count_mean_3"
+  ],
+  "target": "target_growth_3m_clipped",
+  "prediction_clip": [
+    -0.04,
+    0.04
+  ],
+  "limitations": [
+    "Suburb-month sales data is sparse and irregular.",
+    "Monthly suburb medians can be noisy due to transaction mix.",
+    "Predictions should be interpreted as indicative local market momentum only.",
+    "Not suitable for valuation, lending, legal, or investment advice without professional verification."
+  ],
+  "calibration": {
+    "prediction_scale": 0.2,
+    "prediction_clip": 0.035,
+    "reason": "Raw Ridge predictions are scaled and clipped at inference time to avoid overreacting to sparse suburb-level transaction data and transaction-mix noise."
+  }
+}

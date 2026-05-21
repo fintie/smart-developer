@@ -1,0 +1,48 @@
+{
+  "model_name": "rolling_ridge_market_trend_v1",
+  "time_split": {
+    "split_type": "time_quantile_80_20",
+    "split_month": "2025-12-01T00:00:00",
+    "train_rows": 5312,
+    "test_rows": 920,
+    "train_start": "2020-01-01T00:00:00",
+    "train_end": "2025-12-01T00:00:00",
+    "test_start": "2026-01-01T00:00:00",
+    "test_end": "2026-02-01T00:00:00",
+    "train": {
+      "mae": 0.18814322229315936,
+      "rmse": 0.2127536433680914,
+      "direction_accuracy": 0.7023719879518072,
+      "pred_mean": -0.01498543019159641,
+      "pred_std": 0.03290353870687953,
+      "pred_min": -0.04,
+      "pred_max": 0.04
+    },
+    "test": {
+      "mae": 0.18804989292195226,
+      "rmse": 0.21451909478049744,
+      "direction_accuracy": 0.625,
+      "pred_mean": -0.00025436235105861794,
+      "pred_std": 0.033056261417236846,
+      "pred_min": -0.04,
+      "pred_max": 0.04
+    }
+  },
+  "rolling_walk_forward": {
+    "n": 5914,
+    "months": 22,
+    "mae": 0.188286062472224,
+    "rmse": 0.21311556245751573,
+    "direction_accuracy": 0.6866756848156916,
+    "positive_actual_count": 2374,
+    "positive_direction_accuracy": 0.561078348778433,
+    "negative_actual_count": 3505,
+    "negative_direction_accuracy": 0.7786019971469329,
+    "pred_mean": -0.0104915115748617,
+    "pred_std": 0.03421069563007168,
+    "actual_mean": -0.05268466157772446,
+    "actual_std": 0.22233668652934335,
+    "pred_clip_lower_rate": 0.0,
+    "pred_clip_upper_rate": 0.0
+  }
+}

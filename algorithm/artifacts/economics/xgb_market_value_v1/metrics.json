@@ -1,0 +1,91 @@
+{
+  "model_name": "xgb_market_value_v1",
+  "target": "log_sale_price",
+  "config_path": "algorithm/configs/economics/xgb_market_value.yaml",
+  "training_data_path": "data/processed/economics/nsw_sales_training.parquet",
+  "n_total_after_filter": 63349,
+  "n_train": 50679,
+  "n_test": 12670,
+  "date_filter": {
+    "min_sale_date": "2025-01-01",
+    "max_sale_date": "today"
+  },
+  "split": {
+    "strategy": "time",
+    "test_fraction": 0.2
+  },
+  "train_date_range": {
+    "min": "2025-01-01 00:00:00",
+    "max": "2026-03-06 00:00:00"
+  },
+  "test_date_range": {
+    "min": "2026-03-06 00:00:00",
+    "max": "2026-05-13 00:00:00"
+  },
+  "train_sale_price_distribution": {
+    "median": 982000.0,
+    "mean": 1510590.885968547,
+    "p25": 680000.0,
+    "p75": 1560000.0,
+    "p90": 2650000.0
+  },
+  "test_sale_price_distribution": {
+    "median": 870000.0,
+    "mean": 1163192.236148382,
+    "p25": 620000.0,
+    "p75": 1284375.0,
+    "p90": 1970500.0000000019
+  },
+  "train": {
+    "mae_dollars": 604657.0878246846,
+    "median_ae_dollars": 254970.125,
+    "rmse_dollars": 1901883.6497404063,
+    "mape": 0.4181115678390658,
+    "median_ape": 0.26002868749999974,
+    "r2_log": 0.5470317566898261
+  },
+  "test": {
+    "mae_dollars": 459835.46052436857,
+    "median_ae_dollars": 214111.37499999942,
+    "rmse_dollars": 1348098.0587638924,
+    "mape": 0.4517983917952002,
+    "median_ape": 0.24853103957208944,
+    "r2_log": 0.40889404684782304
+  },
+  "feature_columns": [
+    "suburb",
+    "postcode",
+    "property_class_code",
+    "property_class",
+    "contract_year",
+    "contract_month",
+    "contract_quarter",
+    "months_since_start",
+    "suburb_sales_count_12m",
+    "suburb_median_price_12m",
+    "suburb_mean_price_12m",
+    "suburb_p25_price_12m",
+    "suburb_p75_price_12m",
+    "postcode_sales_count_12m",
+    "postcode_median_price_12m"
+  ],
+  "categorical_features": [
+    "suburb",
+    "postcode",
+    "property_class_code",
+    "property_class",
+    "contract_year",
+    "contract_month",
+    "contract_quarter"
+  ],
+  "numeric_features": [
+    "months_since_start",
+    "suburb_sales_count_12m",
+    "suburb_median_price_12m",
+    "suburb_mean_price_12m",
+    "suburb_p25_price_12m",
+    "suburb_p75_price_12m",
+    "postcode_sales_count_12m",
+    "postcode_median_price_12m"
+  ]
+}

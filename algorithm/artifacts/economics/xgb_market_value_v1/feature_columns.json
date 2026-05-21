@@ -1,0 +1,17 @@
+[
+  "suburb",
+  "postcode",
+  "property_class_code",
+  "property_class",
+  "contract_year",
+  "contract_month",
+  "contract_quarter",
+  "months_since_start",
+  "suburb_sales_count_12m",
+  "suburb_median_price_12m",
+  "suburb_mean_price_12m",
+  "suburb_p25_price_12m",
+  "suburb_p75_price_12m",
+  "postcode_sales_count_12m",
+  "postcode_median_price_12m"
+]

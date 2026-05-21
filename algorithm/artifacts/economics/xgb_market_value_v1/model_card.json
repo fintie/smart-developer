@@ -1,0 +1,33 @@
+{
+  "model_name": "xgb_market_value_v1",
+  "model_type": "XGBoostRegressor",
+  "target": "log1p(sale_price)",
+  "intended_use": "Indicative NSW market value / acquisition cost proxy for Smart Developer opportunity screening.",
+  "not_intended_use": "Formal valuation, lending assessment, legal advice, investment advice, or financial advice.",
+  "training_data": "data/processed/economics/nsw_sales_training.parquet",
+  "artifact_path": "algorithm/artifacts/economics/xgb_market_value_v1/model.joblib",
+  "metrics_path": "algorithm/artifacts/economics/xgb_market_value_v1/metrics.json",
+  "feature_columns_path": "algorithm/artifacts/economics/xgb_market_value_v1/feature_columns.json",
+  "date_filter": {
+    "min_sale_date": "2025-01-01",
+    "max_sale_date": "today"
+  },
+  "split": {
+    "strategy": "time",
+    "test_fraction": 0.2
+  },
+  "test_metrics": {
+    "mae_dollars": 459835.46052436857,
+    "median_ae_dollars": 214111.37499999942,
+    "rmse_dollars": 1348098.0587638924,
+    "mape": 0.4517983917952002,
+    "median_ape": 0.24853103957208944,
+    "r2_log": 0.40889404684782304
+  },
+  "limitations": [
+    "NSW PSI data may be incomplete, delayed, or contain unusual transactions.",
+    "The current model uses suburb, postcode, date, property class, and rolling market statistics.",
+    "The current model does not yet include bedrooms, bathrooms, parking, land size, building area, licensed comparable-sales features, or full parcel-level planning attributes.",
+    "Predictions should be treated as indicative screening proxies only."
+  ]
+}
