@@ -1,7 +1,7 @@
 from __future__ import annotations
 import time
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from algorithm.src.mlops.logger import log_retrieval_response, log_user_feedback
@@ -28,6 +28,7 @@ PRODUCT_RESULT_FIELDS = [
     "agent_opportunity_score",
     "agent_rank_position",
 
+    # Geographical factors
     "primary_zoning_code",
     "primary_zoning_class",
     "zoning_band",
@@ -44,13 +45,46 @@ PRODUCT_RESULT_FIELDS = [
     "top_strategy_score",
     "strategy_score",
 
+    # Government Policy factors
     "policy_upside_score",
     "policy_signal_band",
     "policy_matched_rules",
     "policy_matched_policies",
     "policy_matched_policy_names",
+    "policy_evidence",
+    "policy_evidence_count",
     "policy_explanation",
 
+    # Value/Cost factors
+    "locality",
+    "locality_median_sale_price",
+    "locality_sales_count",
+    "locality_price_confidence",
+
+    "ml_estimated_market_value",
+    "ml_value_lower_bound",
+    "ml_value_upper_bound",
+    "ml_value_error_pct",
+    "ml_value_confidence",
+    "ml_value_model",
+
+    "estimated_acquisition_cost",
+    "estimated_acquisition_cost_source",
+    "gross_floor_area_proxy_sqm",
+    "base_construction_cost",
+    "estimated_development_cost",
+    "estimated_soft_cost",
+    "estimated_contingency",
+    "estimated_total_project_cost",
+    "cost_band",
+    "cost_risk_score",
+    "cost_efficiency_score",
+    "value_potential_score",
+    "value_potential_band",
+    "cost_value_explanation",
+
+    # Explanation/Reporting
+    "ranking_profile",
     "fast_explanation",
     "explanation",
     "agent_pitch",
@@ -86,6 +120,13 @@ class RetrieveSitesPayload(BaseModel):
 
     locality: str | None = None
     address_contains: str | None = None
+
+    ranking_profile: Literal[
+        "balanced",
+        "policy_upside",
+        "budget_sensitive",
+        "high_value",
+    ] = "balanced"
 
     # MLOps logging metadata
     user_id: str | None = None
@@ -142,6 +183,7 @@ def _warmup_predictor(predictor: SmartDeveloperPredictor) -> float:
         use_dcn_reranker=True,
         reranking_model=DEFAULT_RERANKING_MODEL,
         locality="WAITARA",
+        ranking_profile="balanced"
     )
 
     t0 = time.perf_counter()
@@ -184,7 +226,16 @@ def health() -> dict[str, Any]:
         "production_models": {
             "retrieval_model": DEFAULT_RETRIEVAL_MODEL,
             "reranking_model": DEFAULT_RERANKING_MODEL,
+            "market_value_model": "xgb_market_value_v1",
         },
+        "ranking_profiles": [
+            "balanced",
+            "policy_upside",
+            "budget_sensitive",
+            "high_value",
+        ],
+        "economics_enabled": True,
+        "policy_rag_enabled": True,
     }
 
 
@@ -210,6 +261,7 @@ def retrieve_sites(payload: RetrieveSitesPayload) -> dict[str, Any]:
         dedupe_by_address=payload.dedupe_by_address,
         locality=payload.locality,
         address_contains=payload.address_contains,
+        ranking_profile=payload.ranking_profile,
     )
 
     response = state.predictor.predict(request)

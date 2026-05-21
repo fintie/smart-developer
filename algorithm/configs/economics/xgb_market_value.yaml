@@ -1,0 +1,46 @@
+version: "0.1.0"
+
+data:
+  sales_path: data/interim/nsw_psi/sales.parquet
+  training_output_path: data/processed/economics/nsw_sales_training.parquet
+
+model:
+  artifact_dir: algorithm/artifacts/economics/xgb_market_value_v1
+  model_name: xgb_market_value_v1
+  target_column: log_sale_price
+
+features:
+  categorical:
+    - suburb
+    - postcode
+    - property_class_code
+    - property_class
+    - contract_year
+    - contract_month
+    - contract_quarter
+
+  numeric:
+    - months_since_start
+    - suburb_sales_count_12m
+    - suburb_median_price_12m
+    - suburb_mean_price_12m
+    - suburb_p25_price_12m
+    - suburb_p75_price_12m
+    - postcode_sales_count_12m
+    - postcode_median_price_12m
+
+training:
+  split_strategy: time
+  test_fraction: 0.2
+  random_state: 42
+  min_sale_date: "2025-01-01"
+  max_sale_date: "today"
+
+xgboost:
+  n_estimators: 600
+  max_depth: 6
+  learning_rate: 0.04
+  subsample: 0.85
+  colsample_bytree: 0.85
+  objective: reg:squarederror
+  tree_method: hist

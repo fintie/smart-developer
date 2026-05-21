@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 import pandas as pd
 import yaml
+from algorithm.src.policy.policy_retriever import PolicyRetriever
 
 
 DEFAULT_POLICY_RULES_PATH = Path("algorithm/configs/policies/policy_rules.yaml")
@@ -149,11 +150,21 @@ def _build_policy_explanation(matches: list[PolicyMatch]) -> str:
 
 
 class PolicyScorer:
-    def __init__(self, rules_path: Path | str = DEFAULT_POLICY_RULES_PATH):
+    def __init__(
+        self,
+        rules_path: Path | str = DEFAULT_POLICY_RULES_PATH,
+        enable_rag_evidence: bool = False,
+        policy_retriever: PolicyRetriever | None = None,
+        rag_top_k: int = 3,
+    ):
         self.rules_path = Path(rules_path)
         config = _load_yaml(self.rules_path)
         self.config = config
         self.rules = config.get("rules", [])
+
+        self.enable_rag_evidence = enable_rag_evidence
+        self.policy_retriever = policy_retriever
+        self.rag_top_k = rag_top_k
 
     def score_site(self, site: dict[str, Any], strategy: str) -> dict[str, Any]:
         matches: list[PolicyMatch] = []
@@ -187,12 +198,40 @@ class PolicyScorer:
         matched_policies = sorted({m.policy_id for m in matches})
         matched_policy_names = sorted({m.policy_name for m in matches})
 
+        policy_evidence: list[dict[str, Any]] = []
+
+        if self.enable_rag_evidence and matched_policies:
+            if self.policy_retriever is None:
+                self.policy_retriever = PolicyRetriever()
+
+            try:
+                policy_evidence = self.policy_retriever.retrieve(
+                    policy_ids=matched_policies,
+                    strategy=strategy,
+                    site=site,
+                    top_k=self.rag_top_k,
+                )
+            except Exception as exc:
+                policy_evidence = [
+                    {
+                        "policy_id": "policy_rag_error",
+                        "policy_name": "Policy RAG retrieval failed",
+                        "source_url": None,
+                        "retrieved_at": None,
+                        "chunk_id": None,
+                        "snippet": f"Policy evidence retrieval failed: {exc}",
+                        "relevance_score": None,
+                    }
+                ]
+
         return {
             "policy_upside_score": round(total_score, 2),
             "policy_signal_band": _band_from_score(total_score),
             "policy_matched_rules": matched_rules,
             "policy_matched_policies": matched_policies,
             "policy_matched_policy_names": matched_policy_names,
+            "policy_evidence": policy_evidence,
+            "policy_evidence_count": len(policy_evidence),
             "policy_explanation": _build_policy_explanation(matches),
         }
 

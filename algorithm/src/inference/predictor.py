@@ -8,6 +8,7 @@ import pandas as pd
 from algorithm.src.retrieval.hybrid_retrieve import HybridRetriever, RetrievalRequest
 from algorithm.src.policy.policy_scorer import PolicyScorer
 from algorithm.src.ranking.opportunity_fusion import apply_opportunity_fusion, add_agent_pitch
+from algorithm.src.economics.opportunity.economics_pipeline import EconomicsPipeline
 
 
 DEFAULT_RETRIEVAL_MODEL = "two_tower_v1"
@@ -31,6 +32,7 @@ class PredictionRequest:
     locality: str | None = None
     address_contains: str | None = None
     location_fallback: bool = True
+    ranking_profile: str = "balanced"
     explanation_model: str = DEFAULT_EXPLANATION_MODEL
 
 
@@ -57,7 +59,11 @@ class SmartDeveloperPredictor:
         self.default_reranking_model = default_reranking_model
         self.default_explanation_model = default_explanation_model
 
-        self.policy_scorer = PolicyScorer()
+        self.policy_scorer = PolicyScorer(
+            enable_rag_evidence=True,
+            rag_top_k=3,
+        )
+        self.economics_pipeline = EconomicsPipeline(use_ml_market_value=True)
 
         self._retriever_cache: dict[str, HybridRetriever] = {}
 
@@ -180,7 +186,14 @@ class SmartDeveloperPredictor:
                 results_df,
                 strategy=request.strategy,
             )
-            results_df = apply_opportunity_fusion(results_df)
+            results_df = self.economics_pipeline.score_dataframe(
+                results_df,
+                strategy=request.strategy,
+            )
+            results_df = apply_opportunity_fusion(
+                results_df,
+                ranking_profile=request.ranking_profile,
+            )
 
         records = self._clean_records(results_df)
         records = add_agent_pitch(records)
@@ -204,6 +217,7 @@ class SmartDeveloperPredictor:
                 "locality": request.locality,
                 "address_contains": request.address_contains,
                 **location_metadata,
+                "ranking_profile": request.ranking_profile,
                 "policy_scoring_enabled": True,
                 "opportunity_fusion_enabled": True,
                 "ranking_mode": "policy_aware_agent_opportunity",
@@ -231,6 +245,7 @@ class SmartDeveloperPredictor:
             dedupe_by_address=bool(payload.get("dedupe_by_address", True)),
             locality=payload.get("locality"),
             address_contains=payload.get("address_contains"),
+            ranking_profile=str(payload.get("ranking_profile", "balanced")),
             explanation_model=str(
                 payload.get("explanation_model", self.default_explanation_model)
             ),

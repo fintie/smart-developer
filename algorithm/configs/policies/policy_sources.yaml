@@ -1,0 +1,65 @@
+version: "0.1.0"
+
+metadata:
+  name: "NSW Planning Policy Sources"
+  description: >
+    Official NSW policy sources used by the Smart Developer policy RAG layer.
+    These sources support policy evidence retrieval for recommendation explanations.
+
+sources:
+  - policy_id: nsw_low_mid_rise_2025
+    policy_name: NSW Low and Mid-Rise Housing Policy
+    jurisdiction: NSW
+    source_type: webpage
+    url: https://www.planning.nsw.gov.au/policy-and-legislation/housing/low-and-mid-rise-housing-policy
+    tags:
+      - low_mid_rise
+      - housing
+      - station_catchment
+      - residential_zones
+      - 800m
+
+  - policy_id: nsw_tod_2024
+    policy_name: NSW Transport Oriented Development Program
+    jurisdiction: NSW
+    source_type: webpage
+    url: https://www.planning.nsw.gov.au/policy-and-legislation/housing/transport-oriented-development-program
+    tags:
+      - tod
+      - transport_oriented_development
+      - station_catchment
+      - housing_sepp
+
+  - policy_id: nsw_tod_controls
+    policy_name: NSW TOD Planning Controls
+    jurisdiction: NSW
+    source_type: webpage
+    url: https://www.planning.nsw.gov.au/policy-and-legislation/housing/transport-oriented-development-program/transport-oriented-development
+    tags:
+      - tod
+      - planning_controls
+      - housing_sepp
+      - affordable_housing
+      - floor_space
+
+  - policy_id: nsw_housing_sepp
+    policy_name: NSW Housing SEPP
+    jurisdiction: NSW
+    source_type: webpage
+    url: https://www.planning.nsw.gov.au/policy-and-legislation/housing/housing-sepp
+    tags:
+      - housing_sepp
+      - affordable_housing
+      - housing_supply
+      - planning_controls
+
+  - policy_id: nsw_housing_sepp_infill_affordable
+    policy_name: NSW Housing SEPP / In-fill Affordable Housing
+    jurisdiction: NSW
+    source_type: webpage
+    url: https://www.planning.nsw.gov.au/policy-and-legislation/housing/housing-sepp/in-fill-affordable-housing
+    tags:
+      - housing_sepp
+      - affordable_housing
+      - fsr_bonus
+      - height_bonus

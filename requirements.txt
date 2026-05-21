@@ -5,7 +5,7 @@ pydantic-settings==2.5.2
 sqlalchemy==2.0.35
 psycopg[binary]==3.2.3
 python-dotenv==1.0.1
-tqdm
+tqdm~=4.67.3
 
 numpy==2.1.1
 pandas==2.2.3
@@ -15,7 +15,7 @@ xgboost==2.1.1
 torch==2.4.1
 ollama
 sentence_transformers
-transformers
+transformers~=5.6.2
 
 geopandas==1.0.1
 shapely==2.0.6
@@ -27,9 +27,14 @@ matplotlib==3.9.2
 
 pytest==8.3.3
 httpx==0.27.2
-pyyaml
+pyyaml~=6.0.3
 tabulate
 
-markdown
-beautifulsoup4
-reportlab
+markdown~=3.10.2
+beautifulsoup4~=4.14.3
+reportlab~=4.5.0
+requests~=2.33.1
+langchain-community~=0.4.1
+langchain~=1.3.1
+langchain-text-splitters~=1.1.2
+langchain-core~=1.4.0

@@ -1,0 +1,53 @@
+version: "0.1.0"
+
+description: >
+  Indicative development cost assumptions for Smart Developer opportunity screening.
+  These values are not quantity surveying estimates.
+
+assumptions:
+  soft_cost_ratio: 0.15
+  contingency_ratio: 0.10
+  labour_material_escalation_multiplier: 1.00
+
+strategy_fsr:
+  single_dwelling_rebuild: 0.45
+  granny_flat: 0.25
+  dual_occupancy: 0.60
+  townhouse_multi_dwelling: 0.85
+  low_rise_apartment: 1.50
+  assembly_opportunity: 1.30
+  land_bank_hold: 0.00
+
+build_cost_per_sqm:
+  single_dwelling_rebuild: 2600
+  granny_flat: 2400
+  dual_occupancy: 2800
+  townhouse_multi_dwelling: 3200
+  low_rise_apartment: 3800
+  assembly_opportunity: 3500
+  land_bank_hold: 0
+
+strategy_complexity_multiplier:
+  single_dwelling_rebuild: 1.00
+  granny_flat: 0.90
+  dual_occupancy: 1.05
+  townhouse_multi_dwelling: 1.15
+  low_rise_apartment: 1.25
+  assembly_opportunity: 1.20
+  land_bank_hold: 0.10
+
+constraint_cost_multiplier:
+  none: 1.00
+  low: 1.00
+  moderate: 1.10
+  medium: 1.10
+  high: 1.25
+
+strategy_cost_bands:
+  single_dwelling_rebuild: [1500000, 3000000, 5000000]
+  granny_flat: [300000, 600000, 1000000]
+  dual_occupancy: [2000000, 4000000, 7000000]
+  townhouse_multi_dwelling: [5000000, 10000000, 18000000]
+  low_rise_apartment: [10000000, 25000000, 50000000]
+  assembly_opportunity: [8000000, 20000000, 40000000]
+  land_bank_hold: [1000000, 3000000, 8000000]
