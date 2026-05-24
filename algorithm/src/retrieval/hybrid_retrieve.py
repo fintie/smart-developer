@@ -214,9 +214,54 @@ class HybridRetriever:
 
         return np.vstack(outputs)
 
+    def _candidate_embedding_cache_path(self) -> Path:
+        return ROOT / self.cfg["output"]["model_dir"] / "candidate_embeddings.npy"
+
     def _encode_candidates(self) -> np.ndarray:
+        """
+        Load precomputed candidate embeddings when available.
+
+        Important for cloud serving:
+        encoding all candidate texts with the transformer at startup / first request
+        is too slow on small cloud instances. For production/demo serving, we should
+        precompute embeddings locally and load the .npy artifact.
+        """
+        cache_path = self._candidate_embedding_cache_path()
+
+        if cache_path.exists():
+            embeddings = np.load(cache_path)
+
+            if len(embeddings) != len(self.candidates):
+                raise ValueError(
+                    "Candidate embedding cache row count does not match candidates: "
+                    f"{len(embeddings)} embeddings vs {len(self.candidates)} candidates. "
+                    f"Cache path: {cache_path}"
+                )
+
+            print(
+                f"Loaded candidate embeddings from {cache_path} with shape {embeddings.shape}",
+                flush=True,
+            )
+            return embeddings.astype(np.float32)
+
+        print(
+            f"Candidate embedding cache not found at {cache_path}. "
+            "Encoding candidates now. This is slow and should not happen in cloud serving.",
+            flush=True,
+        )
+
         texts = self.candidates[self.candidate_text_col].tolist()
-        return self._encode_texts(texts, tower="candidate")
+        embeddings = self._encode_texts(texts, tower="candidate").astype(np.float32)
+
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        np.save(cache_path, embeddings)
+
+        print(
+            f"Saved candidate embeddings to {cache_path} with shape {embeddings.shape}",
+            flush=True,
+        )
+
+        return embeddings
 
     def _encode_query(self, query_text: str) -> np.ndarray:
         emb = self._encode_texts([query_text], tower="query")
