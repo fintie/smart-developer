@@ -1,0 +1,106 @@
+{
+  "numeric_feature_cols": [
+    "retrieval_similarity",
+    "strategy_score",
+    "lot_size_proxy_sqm",
+    "bushfire_risk_level",
+    "top_strategy_score"
+  ],
+  "categorical_feature_cols": [
+    "primary_zoning_code",
+    "zoning_band",
+    "lot_size_band",
+    "constraint_severity_band",
+    "station_distance_band"
+  ],
+  "binary_feature_cols": [
+    "mixed_zoning_flag",
+    "heritage_flag",
+    "flood_flag",
+    "within_800m_catchment"
+  ],
+  "feature_names": [
+    "retrieval_similarity",
+    "strategy_score",
+    "lot_size_proxy_sqm",
+    "bushfire_risk_level",
+    "top_strategy_score",
+    "mixed_zoning_flag",
+    "heritage_flag",
+    "flood_flag",
+    "within_800m_catchment",
+    "primary_zoning_code=C3",
+    "primary_zoning_code=E1",
+    "primary_zoning_code=E3",
+    "primary_zoning_code=R1",
+    "primary_zoning_code=R2",
+    "primary_zoning_code=R3",
+    "primary_zoning_code=R4",
+    "zoning_band=high_dev",
+    "zoning_band=low_dev",
+    "zoning_band=mid_dev",
+    "zoning_band=restricted",
+    "lot_size_band=l",
+    "lot_size_band=m",
+    "lot_size_band=s",
+    "lot_size_band=xl",
+    "constraint_severity_band=high",
+    "constraint_severity_band=low",
+    "constraint_severity_band=moderate",
+    "station_distance_band=2km_5km",
+    "station_distance_band=5km_10km",
+    "station_distance_band=800m_2km",
+    "station_distance_band=over_10km",
+    "station_distance_band=within_800m"
+  ],
+  "scaler_mean": [
+    0.0,
+    63.336375000000004,
+    14664.627328002029,
+    0.1575,
+    69.16
+  ],
+  "scaler_scale": [
+    1.0,
+    15.876278353549205,
+    42323.68079364787,
+    0.4692480687227173,
+    10.216688553538276
+  ],
+  "category_levels": {
+    "primary_zoning_code": [
+      "C3",
+      "E1",
+      "E3",
+      "R1",
+      "R2",
+      "R3",
+      "R4"
+    ],
+    "zoning_band": [
+      "high_dev",
+      "low_dev",
+      "mid_dev",
+      "restricted"
+    ],
+    "lot_size_band": [
+      "l",
+      "m",
+      "s",
+      "xl"
+    ],
+    "constraint_severity_band": [
+      "high",
+      "low",
+      "moderate"
+    ],
+    "station_distance_band": [
+      "2km_5km",
+      "5km_10km",
+      "800m_2km",
+      "over_10km",
+      "within_800m"
+    ]
+  },
+  "input_dim": 32
+}
