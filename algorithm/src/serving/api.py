@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import time
 from contextlib import asynccontextmanager
 from typing import Any, Literal
@@ -240,6 +241,12 @@ class ServiceState:
 state = ServiceState()
 
 
+def _get_or_create_predictor() -> SmartDeveloperPredictor:
+    if state.predictor is None:
+        state.predictor = SmartDeveloperPredictor()
+    return state.predictor
+
+
 def _warmup_predictor(predictor: SmartDeveloperPredictor) -> float:
     warmup_request = PredictionRequest(
         strategy="low_rise_apartment",
@@ -266,11 +273,24 @@ def _warmup_predictor(predictor: SmartDeveloperPredictor) -> float:
 async def lifespan(app: FastAPI):
     startup_t0 = time.perf_counter()
 
-    predictor = SmartDeveloperPredictor()
-    state.predictor = predictor
+    lazy_load_predictor = os.getenv("LAZY_LOAD_PREDICTOR", "false").lower() == "true"
+    skip_warmup = os.getenv("SKIP_STARTUP_WARMUP", "false").lower() == "true"
 
-    # Force model/candidate/DCN loading before serving real requests.
-    state.warmup_latency_ms = _warmup_predictor(predictor)
+    if lazy_load_predictor:
+        # Cloud/demo mode:
+        # Open the HTTP port immediately. The predictor/model artifacts will be
+        # loaded on the first real retrieval request.
+        state.predictor = None
+        state.warmup_latency_ms = None
+    else:
+        predictor = SmartDeveloperPredictor()
+        state.predictor = predictor
+
+        if skip_warmup:
+            state.warmup_latency_ms = None
+        else:
+            state.warmup_latency_ms = _warmup_predictor(predictor)
+
     state.startup_latency_ms = round((time.perf_counter() - startup_t0) * 1000, 2)
     state.is_ready = True
 
@@ -291,6 +311,9 @@ app = FastAPI(
 def health() -> dict[str, Any]:
     return {
         "status": "ready" if state.is_ready else "starting",
+        "predictor_loaded": state.predictor is not None,
+        "lazy_load_predictor": os.getenv("LAZY_LOAD_PREDICTOR", "false").lower() == "true",
+        "skip_startup_warmup": os.getenv("SKIP_STARTUP_WARMUP", "false").lower() == "true",
         "service_startup_latency_ms": state.startup_latency_ms,
         "model_load_and_warmup_latency_ms": state.warmup_latency_ms,
         "warm_request_expected": state.is_ready,
@@ -315,11 +338,13 @@ def health() -> dict[str, Any]:
 
 @app.post("/retrieve-sites")
 def retrieve_sites(payload: RetrieveSitesPayload) -> dict[str, Any]:
-    if state.predictor is None or not state.is_ready:
+    if not state.is_ready:
         return {
             "status": "error",
-            "message": "Predictor is not ready.",
+            "message": "Service is not ready.",
         }
+
+    predictor = _get_or_create_predictor()
 
     request = PredictionRequest(
         strategy=payload.strategy,
@@ -338,7 +363,7 @@ def retrieve_sites(payload: RetrieveSitesPayload) -> dict[str, Any]:
         ranking_profile=payload.ranking_profile,
     )
 
-    response = state.predictor.predict(request)
+    response = predictor.predict(request)
 
     if payload.use_template_explanations:
         response["results"] = add_template_explanations(
