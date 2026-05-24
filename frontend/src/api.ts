@@ -172,3 +172,44 @@ export async function createReport(payload: ReportPayload) {
 
   return response.json();
 }
+
+export async function exportReportPdf(payload: {
+  strategy: string;
+  query_text: string;
+  results: SiteResult[];
+  title?: string;
+  audience?: string;
+  output_format?: "pdf" | "markdown";
+  max_rows?: number;
+}) {
+  const response = await fetch(`${API_BASE_URL}/api/export-report`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      title: "Smart Developer Site Recommendation Report",
+      audience: "developer / real estate agent",
+      output_format: "pdf",
+      max_rows: 5,
+      ...payload,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Failed to export report: ${response.status}`);
+  }
+
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "smart_developer_report.pdf";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  window.URL.revokeObjectURL(url);
+}

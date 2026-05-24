@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import {
-  createReport,
+  exportReportPdf,
   searchSites,
   sendFeedback,
   type SearchResponse,
@@ -393,28 +393,29 @@ function App() {
   }
 
   async function handleCreateReport() {
-    if (!searchResponse?.request_id) return;
+    if (!searchResponse?.results?.length) {
+      setReportMessage("Run a search first before generating a report.");
+      return;
+    }
 
-    setReportMessage("");
+    setReportMessage("Generating PDF report...");
     setError("");
 
     try {
-      const result = await createReport({
-        request_id: searchResponse.request_id,
-        explanation_mode: "template",
-        output_markdown: true,
-        output_pdf: true,
-        audience: "developer",
+      await exportReportPdf({
+        strategy,
+        query_text: queryText,
+        results: searchResponse.results,
         title: "Smart Developer Site Recommendation Report",
+        audience: "developer / real estate agent",
+        output_format: "pdf",
+        max_rows: Math.min(searchResponse.results.length, 5),
       });
 
-      setReportMessage(
-        `Report ${result.report_id ?? ""} is ${result.status ?? "created"}. PDF: ${
-          result.output_pdf_path ?? "N/A"
-        }`
-      );
+      setReportMessage("PDF report downloaded.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Report generation failed");
+      setReportMessage("");
     }
   }
 
@@ -536,7 +537,11 @@ function App() {
             </div>
 
             {searchResponse && (
-              <button className="report-button" onClick={handleCreateReport}>
+              <button
+                className="report-button"
+                onClick={handleCreateReport}
+                disabled={!searchResponse.results.length}
+              >
                 Generate Report
               </button>
             )}
