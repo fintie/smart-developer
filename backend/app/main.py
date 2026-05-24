@@ -1,11 +1,17 @@
 from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.schemas import FeedbackRequest, ReportRequest, SearchRequest
+from backend.app.schemas import (
+    FeedbackRequest,
+    ReportRequest,
+    SearchRequest,
+    ExportReportRequest
+)
 from backend.app.services.algorithm_client import (
     AlgorithmServiceError,
     create_report_job,
     get_report_job,
+    export_report,
     health,
     log_feedback,
     retrieve_sites,
@@ -135,3 +141,8 @@ async def report_status(report_id: str):
         return await get_report_job(report_id)
     except AlgorithmServiceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/api/export-report")
+async def export_report_endpoint(payload: ExportReportRequest):
+    return await export_report(payload.model_dump())

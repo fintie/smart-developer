@@ -3,6 +3,8 @@ import os
 from typing import Any
 import httpx
 from dotenv import load_dotenv
+from fastapi import HTTPException
+from fastapi.responses import Response
 
 load_dotenv()
 
@@ -65,3 +67,37 @@ async def create_report_job(payload: dict[str, Any]) -> dict[str, Any]:
 
 async def get_report_job(report_id: str) -> dict[str, Any]:
     return await _get(f"/report-jobs/{report_id}")
+
+
+async def export_report(payload: dict) -> Response:
+    """
+    Proxy stateless report export to the algorithm service.
+
+    The algorithm service returns either:
+    - application/pdf
+    - text/markdown
+    """
+    url = f"{ALGORITHM_SERVICE_URL}/export-report"
+
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        response = await client.post(url, json=payload)
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=response.text,
+        )
+
+    content_type = response.headers.get("content-type", "application/octet-stream")
+    content_disposition = response.headers.get(
+        "content-disposition",
+        'attachment; filename="smart_developer_report.pdf"',
+    )
+
+    return Response(
+        content=response.content,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": content_disposition,
+        },
+    )

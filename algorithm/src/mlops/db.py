@@ -10,30 +10,37 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not DATABASE_URL:
-    raise RuntimeError(
-        "DATABASE_URL is not set. Please define it in your .env file, e.g. "
-        "DATABASE_URL=postgresql+psycopg://user:password@localhost:55435/smart_developer"
+engine = None
+SessionLocal = None
+
+
+def is_database_enabled() -> bool:
+    return bool(DATABASE_URL)
+
+
+if DATABASE_URL:
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
     )
 
-
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
-)
-
-SessionLocal = sessionmaker(
-    bind=engine,
-    autoflush=False,
-    autocommit=False,
-    expire_on_commit=False,
-)
+    SessionLocal = sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+        expire_on_commit=False,
+    )
 
 
 @contextmanager
 def get_session() -> Iterator[Session]:
+    if SessionLocal is None:
+        raise RuntimeError(
+            "MLOps database logging is disabled because DATABASE_URL is not set."
+        )
+
     session = SessionLocal()
     try:
         yield session
