@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+*.pyc
 *.py[cod]
 *.pyo
 *.pyd
@@ -18,7 +19,7 @@ env/
 # Outputs
 outputs/
 
-# Raw/intermediate data
+# Raw / intermediate data
 data/raw/
 data/interim/
 
