@@ -25,18 +25,26 @@ export function ResultsMap({ results }: ResultsMapProps) {
     points[0].longitude as number,
   ];
 
+  const mapProps = {
+    center,
+    zoom: 13,
+    scrollWheelZoom: false,
+    style: {
+      height: "360px",
+      width: "100%",
+      borderRadius: "18px",
+    },
+  } as any;
+
+  const tileLayerProps = {
+    attribution: "&copy; OpenStreetMap contributors",
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  } as any;
+
   return (
     <div className="map-card">
-      <MapContainer
-        center={center}
-        zoom={13}
-        scrollWheelZoom={false}
-        style={{ height: "360px", width: "100%", borderRadius: "18px" }}
-      >
-        <TileLayer
-          attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+      <MapContainer {...mapProps}>
+        <TileLayer {...tileLayerProps} />
 
         {points.map((site, index) => (
           <Marker

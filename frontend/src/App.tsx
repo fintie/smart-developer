@@ -340,7 +340,7 @@ function App() {
         strategy,
         query_text: queryText,
         top_k: topK,
-        recall_k: 10000,
+        recall_k: 1000,
         locality: locality.trim() ? locality.trim().toUpperCase() : null,
         address_contains: null,
         with_explanations: false,
