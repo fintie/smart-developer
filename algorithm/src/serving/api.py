@@ -338,79 +338,88 @@ def health() -> dict[str, Any]:
 
 @app.post("/retrieve-sites")
 def retrieve_sites(payload: RetrieveSitesPayload) -> dict[str, Any]:
-    if not state.is_ready:
-        return {
-            "status": "error",
-            "message": "Service is not ready.",
-        }
+    try:
+        if not state.is_ready:
+            return {
+                "status": "error",
+                "message": "Service is not ready.",
+            }
 
-    predictor = _get_or_create_predictor()
+        predictor = _get_or_create_predictor()
 
-    request = PredictionRequest(
-        strategy=payload.strategy,
-        query_text=payload.query_text,
-        top_k=payload.top_k,
-        recall_k=payload.recall_k,
-        with_explanations=payload.with_explanations,
-        retrieval_model=payload.retrieval_model,
-        use_dcn_reranker=payload.use_dcn_reranker,
-        reranking_model=payload.reranking_model,
-        alpha=payload.alpha,
-        beta=payload.beta,
-        dedupe_by_address=payload.dedupe_by_address,
-        locality=payload.locality,
-        address_contains=payload.address_contains,
-        ranking_profile=payload.ranking_profile,
-    )
-
-    response = predictor.predict(request)
-
-    if payload.use_template_explanations:
-        response["results"] = add_template_explanations(
-            response.get("results", []),
+        request = PredictionRequest(
             strategy=payload.strategy,
-            output_field="fast_explanation",
+            query_text=payload.query_text,
+            top_k=payload.top_k,
+            recall_k=payload.recall_k,
+            with_explanations=payload.with_explanations,
+            retrieval_model=payload.retrieval_model,
+            use_dcn_reranker=payload.use_dcn_reranker,
+            reranking_model=payload.reranking_model,
+            alpha=payload.alpha,
+            beta=payload.beta,
+            dedupe_by_address=payload.dedupe_by_address,
+            locality=payload.locality,
+            address_contains=payload.address_contains,
+            ranking_profile=payload.ranking_profile,
         )
-        response["metadata"]["use_template_explanations"] = True
-    else:
-        response["metadata"]["use_template_explanations"] = False
 
-    response["service"] = {
-        "mode": "warm_predictor_singleton",
-        "service_startup_latency_ms": state.startup_latency_ms,
-        "model_load_and_warmup_latency_ms": state.warmup_latency_ms,
-    }
+        response = predictor.predict(request)
 
-    if payload.log_request and MLOPS_AVAILABLE and is_database_enabled():
-        try:
-            log_retrieval_response(
-                response,
-                user_id=payload.user_id,
-                session_id=payload.session_id,
+        if payload.use_template_explanations:
+            response["results"] = add_template_explanations(
+                response.get("results", []),
+                strategy=payload.strategy,
+                output_field="fast_explanation",
             )
-            response["logging"] = {
-                "enabled": True,
-                "status": "logged",
-            }
-        except Exception as exc:
-            response["logging"] = {
-                "enabled": True,
-                "status": "failed",
-                "error": str(exc),
-            }
-    else:
-        response["logging"] = {
-            "enabled": False,
-            "status": "skipped",
-            "reason": (
-                "DATABASE_URL is not set or MLOps logging is unavailable."
-            ),
+            response["metadata"]["use_template_explanations"] = True
+        else:
+            response["metadata"]["use_template_explanations"] = False
+
+        response["service"] = {
+            "mode": "warm_predictor_singleton",
+            "service_startup_latency_ms": state.startup_latency_ms,
+            "model_load_and_warmup_latency_ms": state.warmup_latency_ms,
         }
 
-    if not payload.debug:
-        response = _filter_product_response(response)
+        if payload.log_request and MLOPS_AVAILABLE and is_database_enabled():
+            try:
+                log_retrieval_response(
+                    response,
+                    user_id=payload.user_id,
+                    session_id=payload.session_id,
+                )
+                response["logging"] = {
+                    "enabled": True,
+                    "status": "logged",
+                }
+            except Exception as exc:
+                response["logging"] = {
+                    "enabled": True,
+                    "status": "failed",
+                    "error": str(exc),
+                }
+        else:
+            response["logging"] = {
+                "enabled": False,
+                "status": "skipped",
+                "reason": (
+                    "DATABASE_URL is not set or MLOps logging is unavailable."
+                ),
+            }
 
-    return response
+        if not payload.debug:
+            response = _filter_product_response(response)
+
+        return response
+    except Exception as exc:
+        import traceback
+        return {
+            "status": "failed",
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            "traceback": traceback.format_exc(),
+        }
 
 
 @app.post("/feedback")
