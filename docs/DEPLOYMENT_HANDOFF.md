@@ -1,6 +1,6 @@
 # Smart Developer Handoff
 
-This document is intended for Zoe / backend collaborators who will continue development on the Smart Developer project.
+This document is intended for backend collaborators who will continue development on the Smart Developer project.
 
 Smart Developer is a property development intelligence platform. The current demo stack is:
 
