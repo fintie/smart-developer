@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   exportReportPdf,
   searchSites,
   sendFeedback,
+  sendRecommendationFeedback,
   type SearchResponse,
   type SiteResult,
 } from "./api";
@@ -103,6 +104,13 @@ function formatProfileLabel(value?: string | null) {
   );
 }
 
+function splitAssessmentText(value: string) {
+  return value
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
 function SiteCard({
   site,
   index,
@@ -123,6 +131,9 @@ function SiteCard({
     site.fast_explanation ||
     site.explanation ||
     "No explanation available.";
+  const assessmentSentences = splitAssessmentText(explanation);
+  const assessmentLead = assessmentSentences[0] ?? explanation;
+  const assessmentDetails = assessmentSentences.slice(1);
 
   return (
     <article className="site-card">
@@ -230,7 +241,24 @@ function SiteCard({
         )}
       </div>
 
-      <p className="explanation">{explanation}</p>
+      <section className="assessment-card">
+        <div className="assessment-header">
+          <div>
+            <span className="section-kicker">AI assessment</span>
+            <h4>Recommendation rationale</h4>
+          </div>
+        </div>
+
+        <p className="assessment-lead">{assessmentLead}</p>
+
+        {assessmentDetails.length > 0 && (
+          <ul className="assessment-list">
+            {assessmentDetails.map((sentence, sentenceIndex) => (
+              <li key={sentenceIndex}>{sentence}</li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {site.policy_evidence && site.policy_evidence.length > 0 && (
         <details className="policy-evidence">
@@ -306,8 +334,49 @@ function App() {
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [reportMessage, setReportMessage] = useState("");
   const [error, setError] = useState("");
+  const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
+  const [recommendationRating, setRecommendationRating] = useState<number | null>(
+    null,
+  );
+  const [recommendationNote, setRecommendationNote] = useState("");
+  const [recommendationFeedbackSubmitting, setRecommendationFeedbackSubmitting] =
+    useState(false);
 
   const [searchResponse, setSearchResponse] = useState<SearchResponse | null>(null);
+  const feedbackDialogTimerRef = useRef<number | null>(null);
+  const successMessageTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackDialogTimerRef.current !== null) {
+        window.clearTimeout(feedbackDialogTimerRef.current);
+      }
+      if (successMessageTimerRef.current !== null) {
+        window.clearTimeout(successMessageTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!feedbackMessage && !reportMessage) return;
+
+    if (successMessageTimerRef.current !== null) {
+      window.clearTimeout(successMessageTimerRef.current);
+    }
+
+    successMessageTimerRef.current = window.setTimeout(() => {
+      setFeedbackMessage("");
+      setReportMessage("");
+      successMessageTimerRef.current = null;
+    }, 15_000);
+
+    return () => {
+      if (successMessageTimerRef.current !== null) {
+        window.clearTimeout(successMessageTimerRef.current);
+        successMessageTimerRef.current = null;
+      }
+    };
+  }, [feedbackMessage, reportMessage]);
 
   const selectedStrategyLabel = useMemo(() => {
     return STRATEGIES.find((item) => item.value === strategy)?.label ?? strategy;
@@ -334,6 +403,13 @@ function App() {
     setFeedbackMessage("");
     setReportMessage("");
     setSearchResponse(null);
+    setFeedbackDialogOpen(false);
+    setRecommendationRating(null);
+    setRecommendationNote("");
+    if (feedbackDialogTimerRef.current !== null) {
+      window.clearTimeout(feedbackDialogTimerRef.current);
+      feedbackDialogTimerRef.current = null;
+    }
 
     try {
       const response = await searchSites({
@@ -353,6 +429,12 @@ function App() {
       });
 
       setSearchResponse(response);
+      if (response.feedback_prompt?.enabled && response.results.length > 0) {
+        feedbackDialogTimerRef.current = window.setTimeout(() => {
+          setFeedbackDialogOpen(true);
+          feedbackDialogTimerRef.current = null;
+        }, 60_000);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search failed");
     } finally {
@@ -392,6 +474,34 @@ function App() {
     }
   }
 
+  async function handleRecommendationFeedbackSubmit() {
+    if (!searchResponse?.request_id || recommendationRating === null) return;
+
+    setRecommendationFeedbackSubmitting(true);
+    setError("");
+
+    try {
+      const result = await sendRecommendationFeedback({
+        request_id: searchResponse.request_id,
+        rating: recommendationRating,
+        user_note: recommendationNote.trim() || null,
+        user_id: "demo_user",
+        session_id: "frontend_demo",
+      });
+
+      setFeedbackMessage(
+        `Recommendation feedback logged: ${result.rating_label ?? recommendationRating}`,
+      );
+      setFeedbackDialogOpen(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Recommendation feedback failed",
+      );
+    } finally {
+      setRecommendationFeedbackSubmitting(false);
+    }
+  }
+
   async function handleCreateReport() {
     if (!searchResponse?.results?.length) {
       setReportMessage("Run a search first before generating a report.");
@@ -428,184 +538,281 @@ function App() {
 
   return (
     <main className="page">
-      <section className="hero">
-        <div>
-          <p className="eyebrow">NextGenius · Smart Developer</p>
-          <h1>AI Site Recommendation Platform</h1>
-          <p className="subtitle">
-            Search development sites with policy-aware ranking, economics-aware
-            scoring, ML market value estimates, and agent-facing explanations.
-          </p>
+      <aside className="app-nav" aria-label="Primary navigation">
+        <div className="nav-brand">
+          <span>SD</span>
         </div>
+        <nav>
+          <a className="active" href="#search">
+            Search
+          </a>
+          <a href="#saved">Saved</a>
+          <a href="#profile">Profile</a>
+          <a href="#setting">Setting</a>
+        </nav>
+      </aside>
 
-        <div className="status-card">
-          <span>Demo flow</span>
-          <strong>Search → Feedback → Report</strong>
-        </div>
-      </section>
-
-      <section className="layout">
-        <aside className="panel search-panel">
-          <h2>Search Criteria</h2>
-
-          <label>
-            Strategy
-            <select
-              value={strategy}
-              onChange={(event) => handleStrategyChange(event.target.value)}
-            >
-              {STRATEGIES.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Locality filter
-            <input
-              value={locality}
-              onChange={(event) => setLocality(event.target.value)}
-              placeholder="e.g. WOLLI CREEK, WAITARA, GYMEA BAY"
-            />
-          </label>
-
-          <label>
-            Ranking Profile
-            <select
-              value={rankingProfile}
-              onChange={(event) =>
-                setRankingProfile(event.target.value as RankingProfile)
-              }
-            >
-              {RANKING_PROFILES.map((profile) => (
-                <option key={profile.value} value={profile.value}>
-                  {profile.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="profile-note">
-            <strong>{selectedRankingProfile.label}:</strong>{" "}
-            {selectedRankingProfile.description}
+      <div className="workspace">
+        <section className="hero">
+          <div>
+            <p className="eyebrow">NextGenius · Smart Developer</p>
+            <h1>AI Site Recommendation Platform</h1>
+            <p className="subtitle">
+              Search development sites with policy-aware ranking, economics-aware
+              scoring, ML market value estimates, and agent-facing explanations.
+            </p>
           </div>
 
-          <label>
-            Top K
-            <input
-              type="number"
-              min={1}
-              max={20}
-              value={topK}
-              onChange={(event) => setTopK(Number(event.target.value))}
-            />
-          </label>
-
-          <label>
-            Query text
-            <textarea
-              value={queryText}
-              onChange={(event) => setQueryText(event.target.value)}
-              rows={7}
-            />
-          </label>
-
-          <button className="primary-button" onClick={handleSearch} disabled={loading}>
-            {loading ? "Searching..." : "Find Sites"}
-          </button>
-
-          <div className="demo-note">
-            <strong>Current mode:</strong>
-            <br />
-            Two-tower retrieval + DCN reranking + NSW policy RAG + ML market value
-            model + development cost and cost-efficiency scoring.
+          <div className="status-card">
+            <span>Demo flow</span>
+            <strong>Search → Feedback → Report</strong>
           </div>
-        </aside>
+        </section>
 
-        <section className="results-panel">
-          <div className="results-header">
-            <div>
-              <p className="eyebrow">Results</p>
-              <h2>{selectedStrategyLabel}</h2>
-              {responseProfile && (
-                <p className="result-profile">
-                  Ranking profile: {formatProfileLabel(responseProfile)}
-                </p>
+        <section className="layout" id="search">
+          <aside className="panel search-panel">
+            <h2>Search Criteria</h2>
+
+            <label>
+              Strategy
+              <select
+                value={strategy}
+                onChange={(event) => handleStrategyChange(event.target.value)}
+              >
+                {STRATEGIES.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Locality filter
+              <input
+                value={locality}
+                onChange={(event) => setLocality(event.target.value)}
+                placeholder="e.g. WOLLI CREEK, WAITARA, GYMEA BAY"
+              />
+            </label>
+
+            <label>
+              Ranking Profile
+              <select
+                value={rankingProfile}
+                onChange={(event) =>
+                  setRankingProfile(event.target.value as RankingProfile)
+                }
+              >
+                {RANKING_PROFILES.map((profile) => (
+                  <option key={profile.value} value={profile.value}>
+                    {profile.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="profile-note">
+              <strong>{selectedRankingProfile.label}:</strong>{" "}
+              {selectedRankingProfile.description}
+            </div>
+
+            <label>
+              Top K
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={topK}
+                onChange={(event) => setTopK(Number(event.target.value))}
+              />
+            </label>
+
+            <label>
+              Query text
+              <textarea
+                value={queryText}
+                onChange={(event) => setQueryText(event.target.value)}
+                rows={7}
+              />
+            </label>
+
+            <button className="primary-button" onClick={handleSearch} disabled={loading}>
+              {loading ? "Searching..." : "Find Sites"}
+            </button>
+
+            <div className="demo-note">
+              <strong>Current mode:</strong>
+              <br />
+              Two-tower retrieval + DCN reranking + NSW policy RAG + ML market value
+              model + development cost and cost-efficiency scoring.
+            </div>
+          </aside>
+
+          <section className="results-panel">
+            <div className="results-header">
+              <div>
+                <p className="eyebrow">Results</p>
+                <h2>{selectedStrategyLabel}</h2>
+                {responseProfile && (
+                  <p className="result-profile">
+                    Ranking profile: {formatProfileLabel(responseProfile)}
+                  </p>
+                )}
+              </div>
+
+              {searchResponse && (
+                <button
+                  className="report-button"
+                  onClick={handleCreateReport}
+                  disabled={!searchResponse.results.length}
+                >
+                  Generate Report
+                </button>
               )}
             </div>
 
             {searchResponse && (
-              <button
-                className="report-button"
-                onClick={handleCreateReport}
-                disabled={!searchResponse.results.length}
-              >
-                Generate Report
-              </button>
+              <div className="summary-row">
+                <div>
+                  <span>Request ID</span>
+                  <strong>{searchResponse.request_id}</strong>
+                </div>
+                <div>
+                  <span>Results</span>
+                  <strong>{resultCount}</strong>
+                </div>
+                <div>
+                  <span>Latency</span>
+                  <strong>
+                    {typeof latency === "number" ? `${latency.toFixed(1)} ms` : "N/A"}
+                  </strong>
+                </div>
+                <div>
+                  <span>Logging</span>
+                  <strong>{String(searchResponse.logging?.status ?? "N/A")}</strong>
+                </div>
+              </div>
             )}
-          </div>
 
-          {searchResponse && (
-            <div className="summary-row">
-              <div>
-                <span>Request ID</span>
-                <strong>{searchResponse.request_id}</strong>
+            {searchResponse && searchResponse.results.length > 0 && (
+              <ResultsMap results={searchResponse.results} />
+            )}
+
+            {feedbackMessage && <div className="success-message">{feedbackMessage}</div>}
+            {reportMessage && <div className="success-message">{reportMessage}</div>}
+            {error && <div className="error-message">{error}</div>}
+
+            {!searchResponse && !loading && (
+              <div className="empty-state">
+                Run a search to display ranked development sites.
               </div>
-              <div>
-                <span>Results</span>
-                <strong>{resultCount}</strong>
+            )}
+
+            {searchResponse && !loading && searchResponse.results.length === 0 && (
+              <div className="empty-state">
+                No exact matches found for this locality. Try removing the locality
+                filter or using a nearby suburb.
               </div>
-              <div>
-                <span>Latency</span>
-                <strong>
-                  {typeof latency === "number" ? `${latency.toFixed(1)} ms` : "N/A"}
-                </strong>
-              </div>
-              <div>
-                <span>Logging</span>
-                <strong>{String(searchResponse.logging?.status ?? "N/A")}</strong>
-              </div>
+            )}
+
+            {loading && <div className="empty-state">Loading ranked sites...</div>}
+
+            <div className="site-list">
+              {searchResponse?.results?.map((site, index) => (
+                <SiteCard
+                  key={`${site.RID ?? index}-${index}`}
+                  site={site}
+                  index={index}
+                  requestId={searchResponse.request_id}
+                  onFeedback={handleFeedback}
+                />
+              ))}
             </div>
-          )}
-
-          {searchResponse && searchResponse.results.length > 0 && (
-            <ResultsMap results={searchResponse.results} />
-          )}
-
-          {feedbackMessage && <div className="success-message">{feedbackMessage}</div>}
-          {reportMessage && <div className="success-message">{reportMessage}</div>}
-          {error && <div className="error-message">{error}</div>}
-
-          {!searchResponse && !loading && (
-            <div className="empty-state">
-              Run a search to display ranked development sites.
-            </div>
-          )}
-
-          {searchResponse && !loading && searchResponse.results.length === 0 && (
-            <div className="empty-state">
-              No exact matches found for this locality. Try removing the locality
-              filter or using a nearby suburb.
-            </div>
-          )}
-
-          {loading && <div className="empty-state">Loading ranked sites...</div>}
-
-          <div className="site-list">
-            {searchResponse?.results?.map((site, index) => (
-              <SiteCard
-                key={`${site.RID ?? index}-${index}`}
-                site={site}
-                index={index}
-                requestId={searchResponse.request_id}
-                onFeedback={handleFeedback}
-              />
-            ))}
-          </div>
+          </section>
         </section>
-      </section>
+      </div>
+
+      {feedbackDialogOpen && searchResponse?.feedback_prompt && (
+        <div className="feedback-modal-backdrop" role="presentation">
+          <section
+            className="feedback-modal"
+            aria-labelledby="recommendation-feedback-title"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="feedback-modal-header">
+              <div>
+                <p className="eyebrow">Feedback</p>
+                <h2 id="recommendation-feedback-title">
+                  {searchResponse.feedback_prompt.title}
+                </h2>
+              </div>
+              <button
+                className="icon-button"
+                aria-label="Close feedback dialog"
+                onClick={() => setFeedbackDialogOpen(false)}
+              >
+                x
+              </button>
+            </div>
+
+            <div className="rating-row" aria-label="Recommendation rating">
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <button
+                  key={rating}
+                  className={
+                    recommendationRating !== null && rating <= recommendationRating
+                      ? "star-button selected"
+                      : "star-button"
+                  }
+                  aria-label={`Rate ${rating} out of 5`}
+                  onClick={() => setRecommendationRating(rating)}
+                  type="button"
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            <div className="rating-scale-labels">
+              <span>Very unsatisfied</span>
+              <span>Very satisfied</span>
+            </div>
+
+            <label className="feedback-note-label">
+              Note
+              <textarea
+                value={recommendationNote}
+                onChange={(event) => setRecommendationNote(event.target.value)}
+                rows={3}
+                placeholder="Optional"
+              />
+            </label>
+
+            <div className="feedback-actions">
+              <button
+                className="feedback-secondary"
+                onClick={() => setFeedbackDialogOpen(false)}
+                type="button"
+              >
+                Not now
+              </button>
+              <button
+                className="primary-button feedback-submit"
+                disabled={
+                  recommendationRating === null ||
+                  recommendationFeedbackSubmitting
+                }
+                onClick={handleRecommendationFeedbackSubmit}
+                type="button"
+              >
+                {recommendationFeedbackSubmitting ? "Submitting..." : "Submit"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

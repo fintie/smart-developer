@@ -6,6 +6,7 @@ __pycache__/
 *.pyd
 .python-version
 .venv/
+.venv*/
 venv/
 env/
 
@@ -65,6 +66,7 @@ dist/
 !algorithm/artifacts/evaluation/.gitkeep
 
 # Frontend build artifacts
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/.next/

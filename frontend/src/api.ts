@@ -103,6 +103,17 @@ export type SearchResponse = {
   metadata?: Record<string, unknown>;
   logging?: Record<string, unknown>;
   service?: Record<string, unknown>;
+  feedback_prompt?: {
+    enabled: boolean;
+    type: string;
+    title: string;
+    scale: {
+      min: number;
+      max: number;
+      labels: Record<string, string>;
+    };
+    submit_endpoint: string;
+  };
 };
 
 export type FeedbackPayload = {
@@ -111,6 +122,14 @@ export type FeedbackPayload = {
   rid?: string | number | null;
   rank_position?: number | null;
   event_value?: Record<string, unknown> | null;
+  user_note?: string | null;
+  user_id?: string;
+  session_id?: string;
+};
+
+export type RecommendationFeedbackPayload = {
+  request_id: string;
+  rating: number;
   user_note?: string | null;
   user_id?: string;
   session_id?: string;
@@ -143,6 +162,24 @@ export async function searchSites(payload: SearchPayload): Promise<SearchRespons
 
 export async function sendFeedback(payload: FeedbackPayload) {
   const response = await fetch(`${API_BASE_URL}/api/feedback`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+}
+
+export async function sendRecommendationFeedback(
+  payload: RecommendationFeedbackPayload,
+) {
+  const response = await fetch(`${API_BASE_URL}/api/recommendation-feedback`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

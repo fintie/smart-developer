@@ -1,6 +1,7 @@
 from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from backend.app.routers import recommendation_feedback
 from backend.app.schemas import (
     FeedbackRequest,
     ReportRequest,
@@ -16,6 +17,9 @@ from backend.app.services.algorithm_client import (
     log_feedback,
     retrieve_sites,
 )
+from backend.app.services.recommendation_feedback import (
+    attach_recommendation_feedback_prompt,
+)
 
 app = FastAPI(
     title="Smart Developer Backend Gateway",
@@ -30,6 +34,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(recommendation_feedback.router)
 
 
 def _normalise_text(value: object) -> str:
@@ -114,6 +120,7 @@ async def search_sites(payload: SearchRequest):
     try:
         response = await retrieve_sites(payload.model_dump())
         response = _apply_strict_locality_guard(response, payload.locality)
+        response = attach_recommendation_feedback_prompt(response)
         return response
     except AlgorithmServiceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
