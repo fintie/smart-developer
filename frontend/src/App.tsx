@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   exportReportPdf,
+  generateAIPropertySummary,
   searchSites,
   sendFeedback,
   sendRecommendationFeedback,
+  type AIPropertySummaryResponse,
   type SearchResponse,
   type SiteResult,
 } from "./api";
@@ -116,11 +118,19 @@ function SiteCard({
   index,
   requestId,
   onFeedback,
+  onAISummary,
+  aiSummaryState,
 }: {
   site: SiteResult;
   index: number;
   requestId: string;
   onFeedback: (eventType: string, site: SiteResult, index: number) => void;
+  onAISummary: (site: SiteResult, index: number) => void;
+  aiSummaryState?: {
+    loading: boolean;
+    data?: AIPropertySummaryResponse;
+    error?: string;
+  };
 }) {
   const address = site.base_site_address || site.address || "Unknown address";
 
@@ -244,7 +254,6 @@ function SiteCard({
       <section className="assessment-card">
         <div className="assessment-header">
           <div>
-            <span className="section-kicker">AI assessment</span>
             <h4>Recommendation rationale</h4>
           </div>
         </div>
@@ -310,12 +319,131 @@ function SiteCard({
       </div>
 
       <div className="button-row">
+        <button onClick={() => onAISummary(site, index)} disabled={aiSummaryState?.loading}>
+          {aiSummaryState?.loading ? "Generating..." : "Generate AI Summary"}
+        </button>
         <button onClick={() => onFeedback("click", site, index)}>Click</button>
         <button onClick={() => onFeedback("save", site, index)}>Save</button>
         <button className="secondary" onClick={() => onFeedback("dismiss", site, index)}>
           Dismiss
         </button>
       </div>
+
+      {aiSummaryState?.error && (
+        <div className="ai-summary-error">{aiSummaryState.error}</div>
+      )}
+
+      {aiSummaryState?.data && (
+        <section className="ai-property-card">
+          <div className="ai-property-header">
+            <div>
+              <span className="section-kicker">AI property summary</span>
+              <h4>{aiSummaryState.data.summary.headline}</h4>
+            </div>
+            <span className="ai-source">
+              {aiSummaryState.data.source === "google_gemini"
+                ? aiSummaryState.data.model
+                : "local structured summary"}
+            </span>
+          </div>
+
+          <div className="ai-value-panel">
+            <span>Estimated value</span>
+            <strong>{aiSummaryState.data.summary.value_estimate.label}</strong>
+            {aiSummaryState.data.summary.value_estimate.range_label && (
+              <p>{aiSummaryState.data.summary.value_estimate.range_label}</p>
+            )}
+            <small>
+              Confidence:{" "}
+              {aiSummaryState.data.summary.value_estimate.confidence ?? "N/A"}
+            </small>
+          </div>
+
+          <div className="ai-summary-grid">
+            <div>
+              <h5>Basic information</h5>
+              <ul>
+                {aiSummaryState.data.summary.basic_info.map((item, itemIndex) => (
+                  <li key={itemIndex}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h5>User requirement fit</h5>
+              <p>{aiSummaryState.data.summary.requirement_match}</p>
+              <p>{aiSummaryState.data.summary.value_estimate.explanation}</p>
+            </div>
+            <div>
+              <h5>Opportunity</h5>
+              <ul>
+                {aiSummaryState.data.summary.opportunity_notes.map(
+                  (item, itemIndex) => (
+                    <li key={itemIndex}>{item}</li>
+                  ),
+                )}
+              </ul>
+            </div>
+            <div>
+              <h5>Risks</h5>
+              <ul>
+                {aiSummaryState.data.summary.risk_notes.map((item, itemIndex) => (
+                  <li key={itemIndex}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <p className="ai-disclaimer">
+            {aiSummaryState.data.summary.disclaimer}
+          </p>
+
+          <section className="ai-suggestion-card">
+            <div className="ai-suggestion-header">
+              <div>
+                <span className="section-kicker">AI suggestion</span>
+                <h5>{aiSummaryState.data.ai_suggestion.headline}</h5>
+              </div>
+            </div>
+
+            <p>{aiSummaryState.data.ai_suggestion.suggestion}</p>
+
+            {aiSummaryState.data.ai_suggestion.next_steps.length > 0 && (
+              <div className="ai-suggestion-section">
+                <strong>Suggested next steps</strong>
+                <ul>
+                  {aiSummaryState.data.ai_suggestion.next_steps.map(
+                    (step, stepIndex) => (
+                      <li key={stepIndex}>{step}</li>
+                    ),
+                  )}
+                </ul>
+              </div>
+            )}
+
+            {aiSummaryState.data.external_sources.length > 0 && (
+              <details className="ai-source-list">
+                <summary>
+                  External sources ({aiSummaryState.data.external_sources.length})
+                </summary>
+                <div>
+                  {aiSummaryState.data.external_sources.map((source, sourceIndex) => (
+                    <a
+                      key={sourceIndex}
+                      href={source.link}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <strong>{source.title}</strong>
+                      {source.snippet && <span>{source.snippet}</span>}
+                    </a>
+                  ))}
+                </div>
+              </details>
+            )}
+
+          </section>
+        </section>
+      )}
 
       <div className="rid">RID: {site.RID ?? "N/A"} · Request: {requestId}</div>
     </article>
@@ -343,6 +471,16 @@ function App() {
     useState(false);
 
   const [searchResponse, setSearchResponse] = useState<SearchResponse | null>(null);
+  const [aiSummaries, setAiSummaries] = useState<
+    Record<
+      string,
+      {
+        loading: boolean;
+        data?: AIPropertySummaryResponse;
+        error?: string;
+      }
+    >
+  >({});
   const feedbackDialogTimerRef = useRef<number | null>(null);
   const successMessageTimerRef = useRef<number | null>(null);
 
@@ -406,6 +544,7 @@ function App() {
     setFeedbackDialogOpen(false);
     setRecommendationRating(null);
     setRecommendationNote("");
+    setAiSummaries({});
     if (feedbackDialogTimerRef.current !== null) {
       window.clearTimeout(feedbackDialogTimerRef.current);
       feedbackDialogTimerRef.current = null;
@@ -471,6 +610,51 @@ function App() {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Feedback failed");
+    }
+  }
+
+  function siteStateKey(site: SiteResult, index: number) {
+    return `${site.RID ?? "site"}-${index}`;
+  }
+
+  async function handleAISummary(site: SiteResult, index: number) {
+    const key = siteStateKey(site, index);
+
+    setAiSummaries((current) => ({
+      ...current,
+      [key]: {
+        ...current[key],
+        loading: true,
+        error: "",
+      },
+    }));
+    setError("");
+
+    try {
+      const data = await generateAIPropertySummary({
+        query_text: queryText,
+        user_requirements: queryText,
+        site,
+        user_id: "demo_user",
+        session_id: "frontend_demo",
+      });
+
+      setAiSummaries((current) => ({
+        ...current,
+        [key]: {
+          loading: false,
+          data,
+        },
+      }));
+    } catch (err) {
+      setAiSummaries((current) => ({
+        ...current,
+        [key]: {
+          loading: false,
+          error:
+            err instanceof Error ? err.message : "AI property summary failed",
+        },
+      }));
     }
   }
 
@@ -726,6 +910,8 @@ function App() {
                   index={index}
                   requestId={searchResponse.request_id}
                   onFeedback={handleFeedback}
+                  onAISummary={handleAISummary}
+                  aiSummaryState={aiSummaries[siteStateKey(site, index)]}
                 />
               ))}
             </div>

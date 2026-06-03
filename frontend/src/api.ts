@@ -70,6 +70,7 @@ export type SiteResult = {
   locality_price_confidence?: string;
 
   ml_estimated_market_value?: number;
+  trend_adjusted_ml_market_value?: number;
   ml_value_lower_bound?: number;
   ml_value_upper_bound?: number;
   ml_value_error_pct?: number;
@@ -144,6 +145,44 @@ export type ReportPayload = {
   title: string;
 };
 
+export type AIPropertySummary = {
+  headline: string;
+  basic_info: string[];
+  requirement_match: string;
+  value_estimate: {
+    label: string;
+    amount?: number | null;
+    confidence?: string | null;
+    range_label?: string | null;
+    explanation: string;
+  };
+  opportunity_notes: string[];
+  risk_notes: string[];
+  disclaimer: string;
+};
+
+export type AIPropertySuggestion = {
+  headline: string;
+  suggestion: string;
+  external_context_used: boolean;
+  source_notes: string[];
+  next_steps: string[];
+};
+
+export type AIExternalSource = {
+  title: string;
+  link: string;
+  snippet?: string | null;
+};
+
+export type AIPropertySummaryResponse = {
+  source: string;
+  model?: string | null;
+  summary: AIPropertySummary;
+  ai_suggestion: AIPropertySuggestion;
+  external_sources: AIExternalSource[];
+};
+
 export async function searchSites(payload: SearchPayload): Promise<SearchResponse> {
   const response = await fetch(`${API_BASE_URL}/api/search`, {
     method: "POST",
@@ -180,6 +219,28 @@ export async function sendRecommendationFeedback(
   payload: RecommendationFeedbackPayload,
 ) {
   const response = await fetch(`${API_BASE_URL}/api/recommendation-feedback`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+}
+
+export async function generateAIPropertySummary(payload: {
+  query_text: string;
+  user_requirements?: string | null;
+  site: SiteResult;
+  user_id?: string;
+  session_id?: string;
+}): Promise<AIPropertySummaryResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/ai-property-summary`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from backend.app.routers import recommendation_feedback
+from backend.app.routers import ai_property_summary, recommendation_feedback
 from backend.app.schemas import (
     FeedbackRequest,
     ReportRequest,
@@ -36,6 +36,7 @@ app.add_middleware(
 )
 
 app.include_router(recommendation_feedback.router)
+app.include_router(ai_property_summary.router)
 
 
 def _normalise_text(value: object) -> str:
