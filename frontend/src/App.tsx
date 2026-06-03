@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  buildPropertyImageUrl,
   exportReportPdf,
   generateAIPropertySummary,
   searchSites,
@@ -133,6 +134,7 @@ function SiteCard({
   };
 }) {
   const address = site.base_site_address || site.address || "Unknown address";
+  const propertyImageUrl = buildPropertyImageUrl(site);
 
   const explanation =
     site.agent_pitch ||
@@ -182,6 +184,18 @@ function SiteCard({
             : "N/A"}
         </span>
       </div>
+
+      {propertyImageUrl && (
+        <img
+          className="property-image"
+          src={propertyImageUrl}
+          alt={`${address} street view`}
+          loading="lazy"
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
+      )}
 
       <div className="meta-grid">
         <div>

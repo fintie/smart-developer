@@ -454,6 +454,18 @@ textarea:focus {
   font-weight: 750;
 }
 
+.property-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 5;
+  max-height: 300px;
+  margin: 0 0 18px;
+  border: 1px solid #e3e8f2;
+  border-radius: 18px;
+  background: #f1f5f9;
+  object-fit: cover;
+}
+
 .meta-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

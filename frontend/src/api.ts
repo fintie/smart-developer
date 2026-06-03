@@ -1,6 +1,24 @@
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8002";
 
+export function buildPropertyImageUrl(site: {
+  address?: string;
+  base_site_address?: string;
+  latitude?: number;
+  longitude?: number;
+}) {
+  const address = site.base_site_address || site.address;
+  if (!address) return "";
+
+  const params = new URLSearchParams({ address });
+  if (typeof site.latitude === "number" && typeof site.longitude === "number") {
+    params.set("latitude", String(site.latitude));
+    params.set("longitude", String(site.longitude));
+  }
+
+  return `${API_BASE_URL}/api/property-image?${params.toString()}`;
+}
+
 export type SearchPayload = {
   strategy: string;
   query_text: string;
