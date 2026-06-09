@@ -189,7 +189,7 @@ function SiteCard({
         <img
           className="property-image"
           src={propertyImageUrl}
-          alt={`${address} street view`}
+          alt={`${address} map preview`}
           loading="lazy"
           onError={(event) => {
             event.currentTarget.style.display = "none";
