@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.routers import (
@@ -6,6 +7,20 @@ from backend.app.routers import (
     property_image,
     recommendation_feedback,
 )
+
+DEFAULT_ALLOWED_ORIGINS = [
+    "https://smart-developer-frontend.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+]
+
+
+def _load_allowed_origins() -> list[str]:
+    raw = os.getenv("ALLOWED_ORIGINS", "").strip()
+    if not raw:
+        return DEFAULT_ALLOWED_ORIGINS
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
 from backend.app.schemas import (
     FeedbackRequest,
     ReportRequest,
@@ -33,10 +48,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_load_allowed_origins(),
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 app.include_router(recommendation_feedback.router)
@@ -50,55 +65,26 @@ def _normalise_text(value: object) -> str:
     return str(value).upper().strip()
 
 
-def _apply_strict_locality_guard(response: dict, locality: str | None) -> dict:
+def _annotate_locality_metadata(response: dict, locality: str | None) -> dict:
     """
-    Demo/product safety guard.
+    Attach locality-filter metadata for observability.
 
-    If a user explicitly enters a locality, do not show unrelated global results.
-    This prevents the UI from looking random when the algorithm service falls
-    back to global candidates.
+    The algorithm service already hard-filters candidates by locality in
+    `_build_candidate_pool` and returns an empty result set when nothing matches,
+    so the gateway no longer re-filters. We still annotate metadata so the
+    frontend can detect when a locality query produced zero matches.
     """
     if not locality or not locality.strip():
         return response
 
     locality_norm = _normalise_text(locality)
-
-    results = response.get("results", [])
-    if not isinstance(results, list):
-        return response
-
-    matched_results = []
-    for item in results:
-        address_text = " ".join(
-            [
-                _normalise_text(item.get("base_site_address")),
-                _normalise_text(item.get("address")),
-            ]
-        )
-
-        if locality_norm in address_text:
-            matched_results.append(item)
+    results = response.get("results", []) if isinstance(response.get("results"), list) else []
 
     metadata = response.setdefault("metadata", {})
     metadata["frontend_location_filter_requested"] = True
     metadata["frontend_location_query"] = locality_norm
-    metadata["frontend_location_original_result_count"] = len(results)
-    metadata["frontend_location_match_count"] = len(matched_results)
+    metadata["frontend_location_match_count"] = len(results)
 
-    if len(matched_results) == 0:
-        metadata["frontend_location_guard_applied"] = True
-        metadata["frontend_location_warning"] = (
-            f"No exact address/locality matches found for '{locality_norm}'. "
-            "Showing no results instead of unrelated global recommendations."
-        )
-        response["results"] = []
-        metadata["result_count"] = 0
-        return response
-
-    metadata["frontend_location_guard_applied"] = True
-    metadata["frontend_location_warning"] = None
-    response["results"] = matched_results
-    metadata["result_count"] = len(matched_results)
     return response
 
 
@@ -125,7 +111,7 @@ async def gateway_health():
 async def search_sites(payload: SearchRequest):
     try:
         response = await retrieve_sites(payload.model_dump())
-        response = _apply_strict_locality_guard(response, payload.locality)
+        response = _annotate_locality_metadata(response, payload.locality)
         response = attach_recommendation_feedback_prompt(response)
         return response
     except AlgorithmServiceError as exc:

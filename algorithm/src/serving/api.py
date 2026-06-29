@@ -1,14 +1,18 @@
 from __future__ import annotations
+import asyncio
+import logging
 import os
 import time
 from contextlib import asynccontextmanager
 from typing import Any, Literal
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 import tempfile
 from pathlib import Path
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 from algorithm.src.explanation.report import ReportConfig, build_site_report
 from algorithm.src.explanation.report_export import export_markdown_report_to_pdf
@@ -46,111 +50,9 @@ from algorithm.src.inference.predictor import (
     PredictionRequest,
     SmartDeveloperPredictor,
 )
-
-
-PRODUCT_RESULT_FIELDS = [
-    "RID",
-    "address",
-    "base_site_address",
-    "latitude",
-    "longitude",
-    "geometry_type",
-    "geocode_source",
-    "geocode_confidence",
-
-    "agent_opportunity_score",
-    "agent_rank_position",
-
-    # Geographical factors
-    "primary_zoning_code",
-    "primary_zoning_class",
-    "zoning_band",
-    "lot_size_band",
-    "lot_size_proxy_sqm",
-    "constraint_severity_band",
-    "station_distance_band",
-    "distance_to_station_m",
-    "within_800m_catchment",
-    "heritage_flag",
-    "flood_flag",
-    "bushfire_flag",
-    "top_strategy",
-    "top_strategy_score",
-    "strategy_score",
-
-    # Government Policy factors
-    "policy_upside_score",
-    "policy_signal_band",
-    "policy_matched_rules",
-    "policy_matched_policies",
-    "policy_matched_policy_names",
-    "policy_evidence",
-    "policy_evidence_count",
-    "policy_explanation",
-
-    # Value/Cost factors
-    "locality",
-    "locality_median_sale_price",
-    "locality_sales_count",
-    "locality_price_confidence",
-
-    "ml_estimated_market_value",
-    "ml_value_lower_bound",
-    "ml_value_upper_bound",
-    "ml_value_error_pct",
-    "ml_value_confidence",
-    "ml_value_model",
-
-    "estimated_acquisition_cost",
-    "estimated_acquisition_cost_source",
-    "gross_floor_area_proxy_sqm",
-    "base_construction_cost",
-    "estimated_development_cost",
-    "estimated_soft_cost",
-    "estimated_contingency",
-    "estimated_total_project_cost",
-    "cost_band",
-    "cost_risk_score",
-    "cost_efficiency_score",
-    "value_potential_score",
-    "value_potential_band",
-    "cost_value_explanation",
-
-    "predicted_market_growth_3m",
-    "market_trend_multiplier",
-    "market_trend_score",
-    "market_trend_band",
-    "market_trend_source",
-    "market_trend_model",
-    "trend_adjusted_ml_market_value",
-    "market_trend_raw_prediction",
-    "market_trend_scaled_prediction",
-    "market_trend_was_clipped",
-
-    "construction_cost_trend_quarter",
-    "predicted_construction_cost_growth_qoq",
-    "construction_cost_escalation_multiplier",
-    "construction_cost_trend_score",
-    "construction_cost_trend_band",
-    "combined_construction_cost_index",
-    "cost_trend_model",
-    "trend_adjusted_development_cost",
-
-    # Explanation/Reporting
-    "ranking_profile",
-    "fast_explanation",
-    "explanation",
-    "agent_pitch",
-]
-
-
-def _filter_product_response(response: dict[str, Any]) -> dict[str, Any]:
-    filtered = dict(response)
-    filtered["results"] = [
-        {k: item.get(k) for k in PRODUCT_RESULT_FIELDS if k in item}
-        for item in response.get("results", [])
-    ]
-    return filtered
+from algorithm.src.serving.product_schema import (
+    filter_product_response as _filter_product_response,
+)
 
 
 class RetrieveSitesPayload(BaseModel):
@@ -235,7 +137,9 @@ class ServiceState:
     predictor: SmartDeveloperPredictor | None = None
     startup_latency_ms: float | None = None
     warmup_latency_ms: float | None = None
-    is_ready: bool = False
+    is_alive: bool = False
+    predictor_loading: bool = False
+    predictor_load_error: str | None = None
 
 
 state = ServiceState()
@@ -245,6 +149,23 @@ def _get_or_create_predictor() -> SmartDeveloperPredictor:
     if state.predictor is None:
         state.predictor = SmartDeveloperPredictor()
     return state.predictor
+
+
+def _load_predictor_in_background() -> None:
+    """Load predictor and (optionally) warm it up. Safe to run in a thread."""
+    state.predictor_loading = True
+    state.predictor_load_error = None
+    try:
+        predictor = SmartDeveloperPredictor()
+        skip_warmup = os.getenv("SKIP_STARTUP_WARMUP", "false").lower() == "true"
+        if not skip_warmup:
+            state.warmup_latency_ms = _warmup_predictor(predictor)
+        state.predictor = predictor
+    except Exception as exc:
+        state.predictor_load_error = f"{type(exc).__name__}: {exc}"
+        logger.exception("Background predictor load failed")
+    finally:
+        state.predictor_loading = False
 
 
 def _warmup_predictor(predictor: SmartDeveloperPredictor) -> float:
@@ -278,10 +199,11 @@ async def lifespan(app: FastAPI):
 
     if lazy_load_predictor:
         # Cloud/demo mode:
-        # Open the HTTP port immediately. The predictor/model artifacts will be
-        # loaded on the first real retrieval request.
+        # Open the HTTP port immediately and load the predictor in a background
+        # thread. /ready will return false until the predictor finishes loading.
         state.predictor = None
         state.warmup_latency_ms = None
+        asyncio.get_event_loop().run_in_executor(None, _load_predictor_in_background)
     else:
         predictor = SmartDeveloperPredictor()
         state.predictor = predictor
@@ -292,11 +214,11 @@ async def lifespan(app: FastAPI):
             state.warmup_latency_ms = _warmup_predictor(predictor)
 
     state.startup_latency_ms = round((time.perf_counter() - startup_t0) * 1000, 2)
-    state.is_ready = True
+    state.is_alive = True
 
     yield
 
-    state.is_ready = False
+    state.is_alive = False
     state.predictor = None
 
 
@@ -309,14 +231,18 @@ app = FastAPI(
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    """Liveness probe — returns 200 as long as the process is up."""
+    predictor_ready = state.predictor is not None
     return {
-        "status": "ready" if state.is_ready else "starting",
-        "predictor_loaded": state.predictor is not None,
+        "status": "ready" if predictor_ready else "starting",
+        "predictor_loaded": predictor_ready,
+        "predictor_loading": state.predictor_loading,
+        "predictor_load_error": state.predictor_load_error,
         "lazy_load_predictor": os.getenv("LAZY_LOAD_PREDICTOR", "false").lower() == "true",
         "skip_startup_warmup": os.getenv("SKIP_STARTUP_WARMUP", "false").lower() == "true",
         "service_startup_latency_ms": state.startup_latency_ms,
         "model_load_and_warmup_latency_ms": state.warmup_latency_ms,
-        "warm_request_expected": state.is_ready,
+        "warm_request_expected": predictor_ready,
         "mlops_logging_enabled": MLOPS_AVAILABLE and is_database_enabled(),
         "mlops_available": MLOPS_AVAILABLE,
         "mlops_import_error": MLOPS_IMPORT_ERROR,
@@ -336,15 +262,27 @@ def health() -> dict[str, Any]:
     }
 
 
+@app.get("/ready")
+def ready():
+    """Readiness probe — 200 only once the predictor is loaded and warm."""
+    if state.predictor is None:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "not_ready",
+                "predictor_loading": state.predictor_loading,
+                "predictor_load_error": state.predictor_load_error,
+            },
+        )
+    return {"status": "ready"}
+
+
 @app.post("/retrieve-sites")
 def retrieve_sites(payload: RetrieveSitesPayload) -> dict[str, Any]:
-    try:
-        if not state.is_ready:
-            return {
-                "status": "error",
-                "message": "Service is not ready.",
-            }
+    if not state.is_alive:
+        raise HTTPException(status_code=503, detail="Service is starting up.")
 
+    try:
         predictor = _get_or_create_predictor()
 
         request = PredictionRequest(
@@ -412,14 +350,21 @@ def retrieve_sites(payload: RetrieveSitesPayload) -> dict[str, Any]:
             response = _filter_product_response(response)
 
         return response
+    except HTTPException:
+        raise
     except Exception as exc:
-        import traceback
-        return {
-            "status": "failed",
-            "error_type": type(exc).__name__,
-            "error": str(exc),
-            "traceback": traceback.format_exc(),
-        }
+        logger.exception("retrieve_sites failed")
+        if payload.debug:
+            import traceback
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                    "traceback": traceback.format_exc(),
+                },
+            )
+        raise HTTPException(status_code=500, detail="Internal error") from exc
 
 
 @app.post("/feedback")

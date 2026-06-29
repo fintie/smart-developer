@@ -5,7 +5,6 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
 import numpy as np
 import pandas as pd
 import torch
@@ -15,7 +14,7 @@ from sklearn.preprocessing import StandardScaler
 
 from algorithm.src.models.dcn_reranker import DCNReranker
 from algorithm.src.models.two_tower_model import TwoTowerModel
-from algorithm.src.explanation.evidence import build_explanation_payload
+# from algorithm.src.explanation.evidence import build_explanation_payload
 from algorithm.src.explanation.pipeline import explain_row
 
 
@@ -285,22 +284,26 @@ class HybridRetriever:
             "explanation",
         ]
 
-    @staticmethod
-    def _access_preference_boost(row: pd.Series, strategy: str) -> float:
-        band = str(row.get("station_distance_band", "unknown"))
+    _ACCESS_BOOST_BY_STRATEGY: dict[str, dict[str, float]] = {
+        "single_dwelling_rebuild": {
+            "within_800m": 0.05,
+            "800m_2km": 0.04,
+            "2km_5km": 0.025,
+            "5km_10km": 0.01,
+            "over_10km": 0.0,
+            "unknown": 0.0,
+        },
+    }
 
-        if strategy == "single_dwelling_rebuild":
-            mapping = {
-                "within_800m": 0.05,
-                "800m_2km": 0.04,
-                "2km_5km": 0.025,
-                "5km_10km": 0.01,
-                "over_10km": 0.0,
-                "unknown": 0.0,
-            }
-            return mapping.get(band, 0.0)
-
-        return 0.0
+    @classmethod
+    def _access_preference_boost_series(
+        cls, df: pd.DataFrame, strategy: str
+    ) -> pd.Series:
+        mapping = cls._ACCESS_BOOST_BY_STRATEGY.get(strategy)
+        if mapping is None:
+            return pd.Series(0.0, index=df.index)
+        bands = df.get("station_distance_band", pd.Series("unknown", index=df.index))
+        return bands.fillna("unknown").astype(str).map(mapping).fillna(0.0)
 
     def _apply_location_filters(
         self,
@@ -451,9 +454,8 @@ class HybridRetriever:
         # Strategy-specific soft serving boost.
         # This is not a hard filter. It only nudges ranking when a feature is desirable
         # but not mandatory for the selected strategy.
-        recalled["serving_boost"] = recalled.apply(
-            lambda row: self._access_preference_boost(row, strategy),
-            axis=1,
+        recalled["serving_boost"] = self._access_preference_boost_series(
+            recalled, strategy
         )
 
         recalled["fusion_rank_score"] = recalled["fusion_score"] + recalled["serving_boost"]

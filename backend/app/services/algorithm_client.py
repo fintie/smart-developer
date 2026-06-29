@@ -1,5 +1,8 @@
 from __future__ import annotations
+import asyncio
+import logging
 import os
+import random
 from typing import Any
 import httpx
 from dotenv import load_dotenv
@@ -8,45 +11,89 @@ from fastapi.responses import Response
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 ALGORITHM_SERVICE_URL = os.getenv("ALGORITHM_SERVICE_URL", "http://localhost:8001")
+POST_TIMEOUT_S = float(os.getenv("ALGORITHM_POST_TIMEOUT_S", "240"))
+GET_TIMEOUT_S = float(os.getenv("ALGORITHM_GET_TIMEOUT_S", "60"))
+EXPORT_TIMEOUT_S = float(os.getenv("ALGORITHM_EXPORT_TIMEOUT_S", "180"))
+MAX_RETRIES = int(os.getenv("ALGORITHM_MAX_RETRIES", "2"))
+RETRYABLE_STATUS = {502, 503, 504}
 
 
 class AlgorithmServiceError(RuntimeError):
     pass
 
 
+def _is_retryable_status(status_code: int) -> bool:
+    return status_code in RETRYABLE_STATUS
+
+
+async def _backoff_sleep(attempt: int) -> None:
+    # Exponential backoff with jitter: 0.5s, 1s, 2s, ...
+    delay = min(2 ** attempt * 0.5, 4.0) + random.uniform(0, 0.25)
+    await asyncio.sleep(delay)
+
+
+async def _request_with_retry(
+    method: str,
+    url: str,
+    *,
+    timeout: float,
+    json: dict[str, Any] | None = None,
+) -> httpx.Response:
+    last_exc: Exception | None = None
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                response = await client.request(method, url, json=json)
+            except (httpx.ConnectError, httpx.ReadTimeout, httpx.RemoteProtocolError) as exc:
+                last_exc = exc
+                if attempt >= MAX_RETRIES:
+                    raise AlgorithmServiceError(
+                        f"Failed to call algorithm service after {attempt + 1} attempts: {exc}"
+                    ) from exc
+                logger.warning(
+                    "Algorithm service %s %s transport error (attempt %d/%d): %s",
+                    method, url, attempt + 1, MAX_RETRIES + 1, exc,
+                )
+                await _backoff_sleep(attempt)
+                continue
+
+            if _is_retryable_status(response.status_code) and attempt < MAX_RETRIES:
+                logger.warning(
+                    "Algorithm service %s %s returned %d (attempt %d/%d)",
+                    method, url, response.status_code, attempt + 1, MAX_RETRIES + 1,
+                )
+                await _backoff_sleep(attempt)
+                continue
+
+            return response
+
+    # Defensive — loop should always either return or raise.
+    raise AlgorithmServiceError(
+        f"Failed to call algorithm service: {last_exc}"
+    )
+
+
 async def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     url = f"{ALGORITHM_SERVICE_URL}{path}"
-
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-            return response.json()
-    except httpx.HTTPStatusError as exc:
-        detail = exc.response.text
+    response = await _request_with_retry("POST", url, timeout=POST_TIMEOUT_S, json=payload)
+    if response.status_code >= 400:
         raise AlgorithmServiceError(
-            f"Algorithm service returned {exc.response.status_code}: {detail}"
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise AlgorithmServiceError(f"Failed to call algorithm service: {exc}") from exc
+            f"Algorithm service returned {response.status_code}: {response.text}"
+        )
+    return response.json()
 
 
 async def _get(path: str) -> dict[str, Any]:
     url = f"{ALGORITHM_SERVICE_URL}{path}"
-
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            return response.json()
-    except httpx.HTTPStatusError as exc:
-        detail = exc.response.text
+    response = await _request_with_retry("GET", url, timeout=GET_TIMEOUT_S)
+    if response.status_code >= 400:
         raise AlgorithmServiceError(
-            f"Algorithm service returned {exc.response.status_code}: {detail}"
-        ) from exc
-    except httpx.HTTPError as exc:
-        raise AlgorithmServiceError(f"Failed to call algorithm service: {exc}") from exc
+            f"Algorithm service returned {response.status_code}: {response.text}"
+        )
+    return response.json()
 
 
 async def health() -> dict[str, Any]:
@@ -79,8 +126,9 @@ async def export_report(payload: dict) -> Response:
     """
     url = f"{ALGORITHM_SERVICE_URL}/export-report"
 
-    async with httpx.AsyncClient(timeout=180.0) as client:
-        response = await client.post(url, json=payload)
+    response = await _request_with_retry(
+        "POST", url, timeout=EXPORT_TIMEOUT_S, json=payload
+    )
 
     if response.status_code >= 400:
         raise HTTPException(
