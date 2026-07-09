@@ -201,6 +201,20 @@ export type AIPropertySummaryResponse = {
   external_sources: AIExternalSource[];
 };
 
+export type RegisterUserResponse = {
+  code: number;
+  message: string;
+  data: {
+    token: string;
+    userInfo: {
+      id: number;
+      username: string;
+      bio?: string | null;
+      avatar?: string | null;
+    };
+  };
+};
+
 export async function searchSites(payload: SearchPayload): Promise<SearchResponse> {
   const response = await fetch(`${API_BASE_URL}/api/search`, {
     method: "POST",
@@ -212,6 +226,33 @@ export async function searchSites(payload: SearchPayload): Promise<SearchRespons
 
   if (!response.ok) {
     throw new Error(await response.text());
+  }
+
+  return response.json();
+}
+
+export async function registerUser(payload: {
+  username: string;
+  password: string;
+}): Promise<RegisterUserResponse> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/user/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    throw new Error(
+      `Backend is not reachable at ${API_BASE_URL}. Start the backend on port 8002 and try again.`,
+    );
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Register failed with status ${response.status}`);
   }
 
   return response.json();

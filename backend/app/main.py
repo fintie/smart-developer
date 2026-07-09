@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +7,7 @@ from backend.app.routers import (
     ai_property_summary,
     property_image,
     recommendation_feedback,
+    users,
 )
 
 DEFAULT_ALLOWED_ORIGINS = [
@@ -13,6 +15,7 @@ DEFAULT_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:5174",
     "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
 ]
 
 
@@ -39,6 +42,9 @@ from backend.app.services.algorithm_client import (
 from backend.app.services.recommendation_feedback import (
     attach_recommendation_feedback_prompt,
 )
+from backend.app.config.db_config import init_user_tables
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Smart Developer Backend Gateway",
@@ -57,6 +63,13 @@ app.add_middleware(
 app.include_router(recommendation_feedback.router)
 app.include_router(ai_property_summary.router)
 app.include_router(property_image.router)
+app.include_router(users.router)
+
+
+@app.on_event("startup")
+async def startup_init_user_tables() -> None:
+    if not await init_user_tables():
+        logger.warning("User tables were not initialized because the database is unavailable.")
 
 
 def _normalise_text(value: object) -> str:

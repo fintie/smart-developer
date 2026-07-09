@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   exportReportPdf,
   generateAIPropertySummary,
+  registerUser,
   searchSites,
   sendFeedback,
   sendRecommendationFeedback,
+  type RegisterUserResponse,
   type SearchResponse,
   type SiteResult,
 } from "./api";
@@ -41,6 +43,12 @@ function App() {
   const [recommendationNote, setRecommendationNote] = useState("");
   const [recommendationFeedbackSubmitting, setRecommendationFeedbackSubmitting] =
     useState(false);
+  const [registerUsername, setRegisterUsername] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerError, setRegisterError] = useState("");
+  const [registerResult, setRegisterResult] =
+    useState<RegisterUserResponse | null>(null);
 
   const [searchResponse, setSearchResponse] = useState<SearchResponse | null>(null);
   const [aiSummaries, setAiSummaries] = useState<Record<string, AISummaryState>>(
@@ -267,6 +275,26 @@ function App() {
     }
   }
 
+  async function handleRegister(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setRegisterLoading(true);
+    setRegisterError("");
+    setRegisterResult(null);
+
+    try {
+      const result = await registerUser({
+        username: registerUsername.trim(),
+        password: registerPassword,
+      });
+      setRegisterResult(result);
+      setRegisterPassword("");
+    } catch (err) {
+      setRegisterError(err instanceof Error ? err.message : "Register failed");
+    } finally {
+      setRegisterLoading(false);
+    }
+  }
+
   const latency = searchResponse?.metadata?.latency_ms;
   const resultCount = searchResponse?.results?.length ?? 0;
   const responseProfile =
@@ -406,6 +434,70 @@ function App() {
               ))}
             </div>
           </section>
+        </section>
+
+        <section className="profile-section" id="profile">
+          <div className="profile-shell">
+            <div>
+              <p className="eyebrow">Profile</p>
+              <h2>Create Account</h2>
+              <p className="profile-copy">
+                Register a demo user through the FastAPI backend. The backend
+                hashes the password, creates a user record, and returns a token.
+              </p>
+            </div>
+
+            <form className="register-card" onSubmit={handleRegister}>
+              <label>
+                Username
+                <input
+                  value={registerUsername}
+                  onChange={(event) => setRegisterUsername(event.target.value)}
+                  placeholder="Enter username"
+                  autoComplete="username"
+                  required
+                  maxLength={50}
+                />
+              </label>
+
+              <label>
+                Password
+                <input
+                  value={registerPassword}
+                  onChange={(event) => setRegisterPassword(event.target.value)}
+                  placeholder="Enter password"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  maxLength={72}
+                />
+              </label>
+
+              <button
+                className="primary-button"
+                type="submit"
+                disabled={
+                  registerLoading ||
+                  !registerUsername.trim() ||
+                  !registerPassword
+                }
+              >
+                {registerLoading ? "Registering..." : "Register"}
+              </button>
+
+              {registerResult && (
+                <div className="register-success">
+                  <span>{registerResult.message}</span>
+                  <strong>{registerResult.data.userInfo.username}</strong>
+                  <small>Token: {registerResult.data.token}</small>
+                </div>
+              )}
+
+              {registerError && (
+                <div className="register-error">{registerError}</div>
+              )}
+            </form>
+          </div>
         </section>
       </div>
 
