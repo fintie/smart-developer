@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  changePassword,
   exportReportPdf,
   generateAIPropertySummary,
   registerUser,
@@ -49,6 +50,12 @@ function App() {
   const [registerError, setRegisterError] = useState("");
   const [registerResult, setRegisterResult] =
     useState<RegisterUserResponse | null>(null);
+  const [authToken, setAuthToken] = useState("");
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
+  const [changePasswordMessage, setChangePasswordMessage] = useState("");
+  const [changePasswordError, setChangePasswordError] = useState("");
 
   const [searchResponse, setSearchResponse] = useState<SearchResponse | null>(null);
   const [aiSummaries, setAiSummaries] = useState<Record<string, AISummaryState>>(
@@ -287,11 +294,36 @@ function App() {
         password: registerPassword,
       });
       setRegisterResult(result);
+      setAuthToken(result.data.token);
       setRegisterPassword("");
     } catch (err) {
       setRegisterError(err instanceof Error ? err.message : "Register failed");
     } finally {
       setRegisterLoading(false);
+    }
+  }
+
+  async function handleChangePassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setChangePasswordLoading(true);
+    setChangePasswordMessage("");
+    setChangePasswordError("");
+
+    try {
+      const result = await changePassword({
+        token: authToken.trim(),
+        oldPassword,
+        newPassword,
+      });
+      setChangePasswordMessage(result.message);
+      setOldPassword("");
+      setNewPassword("");
+    } catch (err) {
+      setChangePasswordError(
+        err instanceof Error ? err.message : "Change password failed",
+      );
+    } finally {
+      setChangePasswordLoading(false);
     }
   }
 
@@ -447,56 +479,121 @@ function App() {
               </p>
             </div>
 
-            <form className="register-card" onSubmit={handleRegister}>
-              <label>
-                Username
-                <input
-                  value={registerUsername}
-                  onChange={(event) => setRegisterUsername(event.target.value)}
-                  placeholder="Enter username"
-                  autoComplete="username"
-                  required
-                  maxLength={50}
-                />
-              </label>
+            <div className="profile-actions">
+              <form className="register-card" onSubmit={handleRegister}>
+                <h3>Register</h3>
+                <label>
+                  Username
+                  <input
+                    value={registerUsername}
+                    onChange={(event) => setRegisterUsername(event.target.value)}
+                    placeholder="Enter username"
+                    autoComplete="username"
+                    required
+                    maxLength={50}
+                  />
+                </label>
 
-              <label>
-                Password
-                <input
-                  value={registerPassword}
-                  onChange={(event) => setRegisterPassword(event.target.value)}
-                  placeholder="Enter password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  maxLength={72}
-                />
-              </label>
+                <label>
+                  Password
+                  <input
+                    value={registerPassword}
+                    onChange={(event) => setRegisterPassword(event.target.value)}
+                    placeholder="Enter password"
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    maxLength={72}
+                  />
+                </label>
 
-              <button
-                className="primary-button"
-                type="submit"
-                disabled={
-                  registerLoading ||
-                  !registerUsername.trim() ||
-                  !registerPassword
-                }
-              >
-                {registerLoading ? "Registering..." : "Register"}
-              </button>
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={
+                    registerLoading ||
+                    !registerUsername.trim() ||
+                    !registerPassword
+                  }
+                >
+                  {registerLoading ? "Registering..." : "Register"}
+                </button>
 
-              {registerResult && (
-                <div className="register-success">
-                  <span>{registerResult.message}</span>
-                  <strong>{registerResult.data.userInfo.username}</strong>
-                  <small>Token: {registerResult.data.token}</small>
-                </div>
-              )}
+                {registerResult && (
+                  <div className="register-success">
+                    <span>{registerResult.message}</span>
+                    <strong>{registerResult.data.userInfo.username}</strong>
+                    <small>Token: {registerResult.data.token}</small>
+                  </div>
+                )}
 
-              {registerError && (
-                <div className="register-error">{registerError}</div>
-              )}
-            </form>
+                {registerError && (
+                  <div className="register-error">{registerError}</div>
+                )}
+              </form>
+
+              <form className="register-card" onSubmit={handleChangePassword}>
+                <h3>Change Password</h3>
+                <label>
+                  Token
+                  <textarea
+                    className="token-input"
+                    value={authToken}
+                    onChange={(event) => setAuthToken(event.target.value)}
+                    placeholder="Paste token, or register first to auto-fill"
+                    required
+                  />
+                </label>
+
+                <label>
+                  Old password
+                  <input
+                    value={oldPassword}
+                    onChange={(event) => setOldPassword(event.target.value)}
+                    placeholder="Enter old password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    maxLength={72}
+                  />
+                </label>
+
+                <label>
+                  New password
+                  <input
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    placeholder="At least 6 characters"
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    minLength={6}
+                    maxLength={72}
+                  />
+                </label>
+
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={
+                    changePasswordLoading ||
+                    !authToken.trim() ||
+                    !oldPassword ||
+                    newPassword.length < 6
+                  }
+                >
+                  {changePasswordLoading ? "Updating..." : "Update Password"}
+                </button>
+
+                {changePasswordMessage && (
+                  <div className="register-success">{changePasswordMessage}</div>
+                )}
+
+                {changePasswordError && (
+                  <div className="register-error">{changePasswordError}</div>
+                )}
+              </form>
+            </div>
           </div>
         </section>
       </div>

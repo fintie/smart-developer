@@ -6,14 +6,19 @@ from starlette import status
 from backend.app.config.db_config import get_db
 from backend.app.crud import users
 from backend.app.models.users import User
-from backend.app.schemas.users import UserAuthResponse, UserInfoResponse, UserRequest
+from backend.app.schemas.users import (
+    UserAuthResponse,
+    UserChangePasswordRequest,
+    UserInfoResponse,
+    UserRequest,
+)
 from backend.app.utils.auth import get_current_user
 from backend.app.utils.security import verify_password
 
 router = APIRouter(prefix="/api/user", tags=["users"])
 
 
-def success_response(message: str, data):
+def success_response(message: str, data=None):
     return {
         "code": 200,
         "message": message,
@@ -79,3 +84,31 @@ async def login(user_data: UserRequest, db: AsyncSession = Depends(get_db)):
 @router.get("/info")
 async def get_user_info(user: User = Depends(get_current_user)):
     return success_response(message="User info retrieved successfully", data=UserInfoResponse.model_validate(user))
+
+
+@router.put("/password")
+async def update_password(
+    password_data: UserChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        password_changed = await users.change_password(
+            db,
+            user,
+            password_data.old_password,
+            password_data.new_password,
+        )
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is unavailable. Start PostgreSQL and try again.",
+        ) from exc
+
+    if not password_changed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Old password is incorrect.",
+        )
+
+    return success_response(message="Password updated successfully")

@@ -53,3 +53,13 @@ async def get_user_by_token(db: AsyncSession, token: str):
     )
     result = await db.execute(query)
     return result.scalar_one_or_none()
+async def change_password(db: AsyncSession, user: User, old_password: str, new_password: str):
+    if not security.verify_password(old_password, user.password):
+        return False
+
+    hashed_new_password = security.get_hash_password(new_password)
+    user.password = hashed_new_password
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return True

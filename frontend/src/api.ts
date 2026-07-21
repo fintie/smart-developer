@@ -215,6 +215,12 @@ export type RegisterUserResponse = {
   };
 };
 
+export type ChangePasswordResponse = {
+  code: number;
+  message: string;
+  data: null;
+};
+
 export async function searchSites(payload: SearchPayload): Promise<SearchResponse> {
   const response = await fetch(`${API_BASE_URL}/api/search`, {
     method: "POST",
@@ -253,6 +259,38 @@ export async function registerUser(payload: {
   if (!response.ok) {
     const text = await response.text();
     throw new Error(text || `Register failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function changePassword(payload: {
+  token: string;
+  oldPassword: string;
+  newPassword: string;
+}): Promise<ChangePasswordResponse> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/user/password`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${payload.token}`,
+      },
+      body: JSON.stringify({
+        oldPassword: payload.oldPassword,
+        newPassword: payload.newPassword,
+      }),
+    });
+  } catch (error) {
+    throw new Error(
+      `Backend is not reachable at ${API_BASE_URL}. Start the backend on port 8002 and try again.`,
+    );
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Change password failed with status ${response.status}`);
   }
 
   return response.json();
