@@ -43,6 +43,7 @@ from backend.app.services.recommendation_feedback import (
     attach_recommendation_feedback_prompt,
 )
 from backend.app.config.db_config import init_user_tables
+from backend.app.utils.exception_handler import register_exception_handlers
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ app.include_router(recommendation_feedback.router)
 app.include_router(ai_property_summary.router)
 app.include_router(property_image.router)
 app.include_router(users.router)
+register_exception_handlers(app)
 
 
 @app.on_event("startup")

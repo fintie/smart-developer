@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class UserRequest(BaseModel):
@@ -11,3 +11,17 @@ class UserRequest(BaseModel):
         if len(value.encode("utf-8")) > 72:
             raise ValueError("Password cannot be longer than 72 bytes")
         return value
+
+
+class UserInfoResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+    bio: str | None = None
+    avatar: str | None = None
+
+
+class UserAuthResponse(BaseModel):
+    token: str
+    user_info: UserInfoResponse
