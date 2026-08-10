@@ -215,11 +215,65 @@ export type RegisterUserResponse = {
   };
 };
 
+export type LoginUserResponse = {
+  code: number;
+  message: string;
+  data: {
+    token: string;
+    user_info: {
+      id: number;
+      username: string;
+      bio?: string | null;
+      avatar?: string | null;
+    };
+  };
+};
+
 export type ChangePasswordResponse = {
   code: number;
   message: string;
   data: null;
 };
+
+export type CollectionItem = {
+  id: number;
+  rid: string;
+  address: string;
+  site: SiteResult;
+  created_at: string;
+};
+
+async function collectionRequest<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...init?.headers,
+    },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { detail?: string } | null;
+    throw new Error(body?.detail || `Collection request failed (${response.status})`);
+  }
+  return response.status === 204 ? undefined as T : response.json();
+}
+
+export function getCollections(token: string): Promise<CollectionItem[]> {
+  return collectionRequest("/api/collections", token);
+}
+
+export function saveCollection(token: string, site: SiteResult): Promise<CollectionItem> {
+  const address = site.base_site_address || site.address || "Unknown address";
+  return collectionRequest("/api/collections", token, {
+    method: "POST",
+    body: JSON.stringify({ rid: String(site.RID ?? address), address, site }),
+  });
+}
+
+export function removeCollection(token: string, collectionId: number): Promise<void> {
+  return collectionRequest(`/api/collections/${collectionId}`, token, { method: "DELETE" });
+}
 
 export async function searchSites(payload: SearchPayload): Promise<SearchResponse> {
   const response = await fetch(`${API_BASE_URL}/api/search`, {
@@ -253,6 +307,7 @@ export async function registerUser(payload: {
   } catch (error) {
     throw new Error(
       `Backend is not reachable at ${API_BASE_URL}. Start the backend on port 8002 and try again.`,
+      { cause: error },
     );
   }
 
@@ -261,6 +316,28 @@ export async function registerUser(payload: {
     throw new Error(text || `Register failed with status ${response.status}`);
   }
 
+  return response.json();
+}
+
+export async function loginUser(payload: {
+  username: string;
+  password: string;
+}): Promise<LoginUserResponse> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/user/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    throw new Error(`Backend is not reachable at ${API_BASE_URL}. Start the backend and try again.`, { cause: error });
+  }
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { detail?: string } | null;
+    throw new Error(body?.detail || "Invalid username or password");
+  }
   return response.json();
 }
 
@@ -285,6 +362,7 @@ export async function changePassword(payload: {
   } catch (error) {
     throw new Error(
       `Backend is not reachable at ${API_BASE_URL}. Start the backend on port 8002 and try again.`,
+      { cause: error },
     );
   }
 

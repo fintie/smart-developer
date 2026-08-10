@@ -14,6 +14,9 @@ type Props = {
   index: number;
   requestId: string;
   onFeedback: (eventType: string, site: SiteResult, index: number) => void;
+  onSave: (site: SiteResult, index: number) => void;
+  isSaved?: boolean;
+  saving?: boolean;
   onAISummary: (site: SiteResult, index: number) => void;
   aiSummaryState?: AISummaryState;
 };
@@ -23,6 +26,9 @@ export function SiteCard({
   index,
   requestId,
   onFeedback,
+  onSave,
+  isSaved,
+  saving,
   onAISummary,
   aiSummaryState,
 }: Props) {
@@ -222,7 +228,7 @@ export function SiteCard({
           {aiSummaryState?.loading ? "Generating..." : "Generate AI Summary"}
         </button>
         <button onClick={() => onFeedback("click", site, index)}>Click</button>
-        <button onClick={() => onFeedback("save", site, index)}>Save</button>
+        <button className={isSaved ? "saved-button" : ""} onClick={() => onSave(site, index)} disabled={saving || isSaved}>{saving ? "Saving…" : isSaved ? "✓ Saved" : "Save"}</button>
         <button className="secondary" onClick={() => onFeedback("dismiss", site, index)}>
           Dismiss
         </button>

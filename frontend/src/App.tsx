@@ -3,13 +3,17 @@ import {
   changePassword,
   exportReportPdf,
   generateAIPropertySummary,
+  getCollections,
+  loginUser,
   registerUser,
+  removeCollection,
+  saveCollection,
   searchSites,
   sendFeedback,
   sendRecommendationFeedback,
-  type RegisterUserResponse,
   type SearchResponse,
   type SiteResult,
+  type CollectionItem,
 } from "./api";
 import "./App.css";
 import "leaflet/dist/leaflet.css";
@@ -18,6 +22,9 @@ import { SiteCard } from "./components/SiteCard";
 import type { AISummaryState } from "./components/AISummaryPanel";
 import { SearchPanel } from "./components/SearchPanel";
 import { RecommendationFeedbackModal } from "./components/RecommendationFeedbackModal";
+import { AuthDialog } from "./components/AuthDialog";
+import { DashboardLayout, type SignedInUser } from "./components/DashboardLayout";
+import { CollectionPage } from "./components/CollectionPage";
 import { formatProfileLabel } from "./lib/format";
 import { STRATEGIES, type RankingProfile } from "./lib/strategies";
 
@@ -26,6 +33,22 @@ function siteStateKey(site: SiteResult, index: number) {
 }
 
 function App() {
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authMessage, setAuthMessage] = useState("");
+  const [activePage, setActivePage] = useState<"dashboard" | "collection">("dashboard");
+  const [collections, setCollections] = useState<CollectionItem[]>([]);
+  const [collectionsLoading, setCollectionsLoading] = useState(false);
+  const [savingRid, setSavingRid] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<SignedInUser | null>(() => {
+    try {
+      const stored = window.localStorage.getItem("smartDeveloperUser");
+      return stored ? JSON.parse(stored) as SignedInUser : null;
+    } catch {
+      return null;
+    }
+  });
   const [strategy, setStrategy] = useState(STRATEGIES[0].value);
   const [queryText, setQueryText] = useState(STRATEGIES[0].query);
   const [locality, setLocality] = useState("");
@@ -44,18 +67,7 @@ function App() {
   const [recommendationNote, setRecommendationNote] = useState("");
   const [recommendationFeedbackSubmitting, setRecommendationFeedbackSubmitting] =
     useState(false);
-  const [registerUsername, setRegisterUsername] = useState("");
-  const [registerPassword, setRegisterPassword] = useState("");
-  const [registerLoading, setRegisterLoading] = useState(false);
-  const [registerError, setRegisterError] = useState("");
-  const [registerResult, setRegisterResult] =
-    useState<RegisterUserResponse | null>(null);
-  const [authToken, setAuthToken] = useState("");
-  const [oldPassword, setOldPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
-  const [changePasswordMessage, setChangePasswordMessage] = useState("");
-  const [changePasswordError, setChangePasswordError] = useState("");
+  const [authToken, setAuthToken] = useState(() => window.localStorage.getItem("smartDeveloperToken") ?? "");
 
   const [searchResponse, setSearchResponse] = useState<SearchResponse | null>(null);
   const [aiSummaries, setAiSummaries] = useState<Record<string, AISummaryState>>(
@@ -95,6 +107,20 @@ function App() {
       }
     };
   }, [feedbackMessage, reportMessage]);
+
+  useEffect(() => {
+    if (!currentUser || !authToken) {
+      setCollections([]);
+      return;
+    }
+    let cancelled = false;
+    setCollectionsLoading(true);
+    getCollections(authToken)
+      .then((items) => { if (!cancelled) setCollections(items); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Could not load collection"); })
+      .finally(() => { if (!cancelled) setCollectionsLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUser, authToken]);
 
   const selectedStrategyLabel = useMemo(() => {
     return STRATEGIES.find((item) => item.value === strategy)?.label ?? strategy;
@@ -186,8 +212,8 @@ function App() {
     }
   }
 
-  async function handleAISummary(site: SiteResult, index: number) {
-    const key = siteStateKey(site, index);
+  async function handleAISummary(site: SiteResult, index: number, stateKey?: string) {
+    const key = stateKey ?? siteStateKey(site, index);
 
     setAiSummaries((current) => ({
       ...current,
@@ -224,6 +250,39 @@ function App() {
             err instanceof Error ? err.message : "AI property summary failed",
         },
       }));
+    }
+  }
+
+  function collectionRid(site: SiteResult) {
+    return String(site.RID ?? site.base_site_address ?? site.address ?? "unknown");
+  }
+
+  async function handleSave(site: SiteResult, index: number) {
+    if (!currentUser || !authToken) {
+      handleOpenAccount();
+      return;
+    }
+    const rid = collectionRid(site);
+    setSavingRid(rid);
+    setError("");
+    try {
+      const saved = await saveCollection(authToken, site);
+      setCollections((items) => items.some((item) => item.id === saved.id) ? items : [saved, ...items]);
+      setFeedbackMessage("Site added to your collection.");
+      await handleFeedback("save", site, index);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save site");
+    } finally {
+      setSavingRid(null);
+    }
+  }
+
+  async function handleRemoveCollection(item: CollectionItem) {
+    try {
+      await removeCollection(authToken, item.id);
+      setCollections((items) => items.filter((entry) => entry.id !== item.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove site");
     }
   }
 
@@ -282,32 +341,60 @@ function App() {
     }
   }
 
-  async function handleRegister(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setRegisterLoading(true);
-    setRegisterError("");
-    setRegisterResult(null);
+  function saveAuthenticatedUser(user: SignedInUser, token: string) {
+    setCurrentUser(user);
+    setAuthToken(token);
+    window.localStorage.setItem("smartDeveloperUser", JSON.stringify(user));
+    window.localStorage.setItem("smartDeveloperToken", token);
+    setAuthDialogOpen(false);
+    setAuthError("");
+  }
 
+  async function handleLogin(username: string, password: string) {
+    setAuthLoading(true);
+    setAuthError("");
     try {
-      const result = await registerUser({
-        username: registerUsername.trim(),
-        password: registerPassword,
-      });
-      setRegisterResult(result);
-      setAuthToken(result.data.token);
-      setRegisterPassword("");
+      const result = await loginUser({ username, password });
+      saveAuthenticatedUser(result.data.user_info, result.data.token);
     } catch (err) {
-      setRegisterError(err instanceof Error ? err.message : "Register failed");
+      setAuthError(err instanceof Error ? err.message : "Login failed");
     } finally {
-      setRegisterLoading(false);
+      setAuthLoading(false);
     }
   }
 
-  async function handleChangePassword(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setChangePasswordLoading(true);
-    setChangePasswordMessage("");
-    setChangePasswordError("");
+  async function handleDialogRegister(username: string, password: string) {
+    setAuthLoading(true);
+    setAuthError("");
+    try {
+      const result = await registerUser({ username, password });
+      saveAuthenticatedUser(result.data.userInfo, result.data.token);
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  function handleSignOut() {
+    setCurrentUser(null);
+    setAuthToken("");
+    window.localStorage.removeItem("smartDeveloperUser");
+    window.localStorage.removeItem("smartDeveloperToken");
+    setCollections([]);
+    setActivePage("dashboard");
+  }
+
+  function handleOpenAccount() {
+    setAuthError("");
+    setAuthMessage("");
+    setAuthDialogOpen(true);
+  }
+
+  async function handleChangePassword(oldPassword: string, newPassword: string) {
+    setAuthLoading(true);
+    setAuthMessage("");
+    setAuthError("");
 
     try {
       const result = await changePassword({
@@ -315,15 +402,11 @@ function App() {
         oldPassword,
         newPassword,
       });
-      setChangePasswordMessage(result.message);
-      setOldPassword("");
-      setNewPassword("");
+      setAuthMessage(result.message);
     } catch (err) {
-      setChangePasswordError(
-        err instanceof Error ? err.message : "Change password failed",
-      );
+      setAuthError(err instanceof Error ? err.message : "Change password failed");
     } finally {
-      setChangePasswordLoading(false);
+      setAuthLoading(false);
     }
   }
 
@@ -335,22 +418,8 @@ function App() {
       : "";
 
   return (
-    <main className="page">
-      <aside className="app-nav" aria-label="Primary navigation">
-        <div className="nav-brand">
-          <span>SD</span>
-        </div>
-        <nav>
-          <a className="active" href="#search">
-            Search
-          </a>
-          <a href="#saved">Saved</a>
-          <a href="#profile">Profile</a>
-          <a href="#setting">Setting</a>
-        </nav>
-      </aside>
-
-      <div className="workspace">
+    <DashboardLayout user={currentUser} onOpenAuth={handleOpenAccount} onSignOut={handleSignOut} activePage={activePage} collectionCount={collections.length} onOpenCollection={() => setActivePage("collection")} onOpenDashboard={() => setActivePage("dashboard")}>
+      {activePage === "dashboard" ? <div className="workspace">
         <section className="hero">
           <div>
             <p className="eyebrow">NextGenius · Smart Developer</p>
@@ -361,10 +430,6 @@ function App() {
             </p>
           </div>
 
-          <div className="status-card">
-            <span>Demo flow</span>
-            <strong>Search → Feedback → Report</strong>
-          </div>
         </section>
 
         <section className="layout" id="search">
@@ -383,7 +448,7 @@ function App() {
             onSearch={handleSearch}
           />
 
-          <section className="results-panel">
+          <section className="results-panel" id="results">
             <div className="results-header">
               <div>
                 <p className="eyebrow">Results</p>
@@ -460,6 +525,9 @@ function App() {
                   index={index}
                   requestId={searchResponse.request_id}
                   onFeedback={handleFeedback}
+                  onSave={handleSave}
+                  isSaved={collections.some((item) => item.rid === collectionRid(site))}
+                  saving={savingRid === collectionRid(site)}
                   onAISummary={handleAISummary}
                   aiSummaryState={aiSummaries[siteStateKey(site, index)]}
                 />
@@ -468,135 +536,20 @@ function App() {
           </section>
         </section>
 
-        <section className="profile-section" id="profile">
-          <div className="profile-shell">
-            <div>
-              <p className="eyebrow">Profile</p>
-              <h2>Create Account</h2>
-              <p className="profile-copy">
-                Register a demo user through the FastAPI backend. The backend
-                hashes the password, creates a user record, and returns a token.
-              </p>
-            </div>
+      </div> : <CollectionPage items={collections} loading={collectionsLoading} onBack={() => setActivePage("dashboard")} onRemove={handleRemoveCollection} onAISummary={(item, index) => handleAISummary(item.site, index, `collection-${item.id}`)} getAISummaryState={(item) => aiSummaries[`collection-${item.id}`]} />}
 
-            <div className="profile-actions">
-              <form className="register-card" onSubmit={handleRegister}>
-                <h3>Register</h3>
-                <label>
-                  Username
-                  <input
-                    value={registerUsername}
-                    onChange={(event) => setRegisterUsername(event.target.value)}
-                    placeholder="Enter username"
-                    autoComplete="username"
-                    required
-                    maxLength={50}
-                  />
-                </label>
-
-                <label>
-                  Password
-                  <input
-                    value={registerPassword}
-                    onChange={(event) => setRegisterPassword(event.target.value)}
-                    placeholder="Enter password"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    maxLength={72}
-                  />
-                </label>
-
-                <button
-                  className="primary-button"
-                  type="submit"
-                  disabled={
-                    registerLoading ||
-                    !registerUsername.trim() ||
-                    !registerPassword
-                  }
-                >
-                  {registerLoading ? "Registering..." : "Register"}
-                </button>
-
-                {registerResult && (
-                  <div className="register-success">
-                    <span>{registerResult.message}</span>
-                    <strong>{registerResult.data.userInfo.username}</strong>
-                    <small>Token: {registerResult.data.token}</small>
-                  </div>
-                )}
-
-                {registerError && (
-                  <div className="register-error">{registerError}</div>
-                )}
-              </form>
-
-              <form className="register-card" onSubmit={handleChangePassword}>
-                <h3>Change Password</h3>
-                <label>
-                  Token
-                  <textarea
-                    className="token-input"
-                    value={authToken}
-                    onChange={(event) => setAuthToken(event.target.value)}
-                    placeholder="Paste token, or register first to auto-fill"
-                    required
-                  />
-                </label>
-
-                <label>
-                  Old password
-                  <input
-                    value={oldPassword}
-                    onChange={(event) => setOldPassword(event.target.value)}
-                    placeholder="Enter old password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    maxLength={72}
-                  />
-                </label>
-
-                <label>
-                  New password
-                  <input
-                    value={newPassword}
-                    onChange={(event) => setNewPassword(event.target.value)}
-                    placeholder="At least 6 characters"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    minLength={6}
-                    maxLength={72}
-                  />
-                </label>
-
-                <button
-                  className="primary-button"
-                  type="submit"
-                  disabled={
-                    changePasswordLoading ||
-                    !authToken.trim() ||
-                    !oldPassword ||
-                    newPassword.length < 6
-                  }
-                >
-                  {changePasswordLoading ? "Updating..." : "Update Password"}
-                </button>
-
-                {changePasswordMessage && (
-                  <div className="register-success">{changePasswordMessage}</div>
-                )}
-
-                {changePasswordError && (
-                  <div className="register-error">{changePasswordError}</div>
-                )}
-              </form>
-            </div>
-          </div>
-        </section>
-      </div>
+      <AuthDialog
+        key={authDialogOpen ? currentUser?.username ?? "guest-open" : "closed"}
+        open={authDialogOpen}
+        user={currentUser}
+        loading={authLoading}
+        error={authError}
+        message={authMessage}
+        onClose={() => { setAuthDialogOpen(false); setAuthError(""); setAuthMessage(""); }}
+        onLogin={handleLogin}
+        onRegister={handleDialogRegister}
+        onChangePassword={handleChangePassword}
+      />
 
       {feedbackDialogOpen && searchResponse?.feedback_prompt && (
         <RecommendationFeedbackModal
@@ -610,7 +563,7 @@ function App() {
           onClose={() => setFeedbackDialogOpen(false)}
         />
       )}
-    </main>
+    </DashboardLayout>
   );
 }
 

@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.routers import (
     ai_property_summary,
+    collections,
     property_image,
     recommendation_feedback,
     users,
@@ -65,6 +66,7 @@ app.include_router(recommendation_feedback.router)
 app.include_router(ai_property_summary.router)
 app.include_router(property_image.router)
 app.include_router(users.router)
+app.include_router(collections.router)
 register_exception_handlers(app)
 
 

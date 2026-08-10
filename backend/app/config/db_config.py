@@ -37,6 +37,7 @@ async def get_db():
 
 
 async def init_user_tables() -> bool:
+    from backend.app.models import collections  # noqa: F401
     from backend.app.models.users import Base
 
     try:

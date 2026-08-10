@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:16
     container_name: smart-developer-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
