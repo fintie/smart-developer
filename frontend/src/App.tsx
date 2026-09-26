@@ -23,9 +23,10 @@ import type { AISummaryState } from "./components/AISummaryPanel";
 import { SearchPanel } from "./components/SearchPanel";
 import { RecommendationFeedbackModal } from "./components/RecommendationFeedbackModal";
 import { AuthDialog } from "./components/AuthDialog";
-import { DashboardLayout, type SignedInUser } from "./components/DashboardLayout";
+import { DashboardLayout, type SignedInUser, type WorkspaceSection } from "./components/DashboardLayout";
 import { CollectionPage } from "./components/CollectionPage";
 import { MarketIntelligence } from "./components/MarketIntelligence";
+import { GrowthExplorer } from "./components/GrowthExplorer";
 import { formatProfileLabel } from "./lib/format";
 import { STRATEGIES, type RankingProfile } from "./lib/strategies";
 
@@ -39,6 +40,10 @@ function App() {
   const [authError, setAuthError] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [activePage, setActivePage] = useState<"dashboard" | "collection">("dashboard");
+  const [activeSection, setActiveSection] = useState<WorkspaceSection>(() => {
+    const section = window.location.hash.slice(1);
+    return section === "opportunities" || section === "growth" ? section : "listings";
+  });
   const [collections, setCollections] = useState<CollectionItem[]>([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
   const [savingRid, setSavingRid] = useState<string | null>(null);
@@ -86,6 +91,18 @@ function App() {
         window.clearTimeout(successMessageTimerRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    function syncSectionFromHash() {
+      const section = window.location.hash.slice(1);
+      if (section === "listings" || section === "opportunities" || section === "growth") {
+        setActiveSection(section);
+        setActivePage("dashboard");
+      }
+    }
+    window.addEventListener("popstate", syncSectionFromHash);
+    return () => window.removeEventListener("popstate", syncSectionFromHash);
   }, []);
 
   useEffect(() => {
@@ -419,15 +436,15 @@ function App() {
       : "";
 
   return (
-    <DashboardLayout user={currentUser} onOpenAuth={handleOpenAccount} onSignOut={handleSignOut} activePage={activePage} collectionCount={collections.length} onOpenCollection={() => setActivePage("collection")} onOpenDashboard={() => setActivePage("dashboard")}>
+    <DashboardLayout user={currentUser} onOpenAuth={handleOpenAccount} onSignOut={handleSignOut} activePage={activePage} collectionCount={collections.length} onOpenCollection={() => setActivePage("collection")} onOpenDashboard={() => setActivePage("dashboard")} activeSection={activeSection} onSelectSection={setActiveSection}>
       {activePage === "dashboard" ? <div className="workspace">
-        <section className="hero">
+        {activeSection === "listings" && <><section className="hero">
           <div>
-            <p className="eyebrow">Strategy-aware property intelligence</p>
-            <h1>Find sites with development potential.</h1>
+            <p className="eyebrow">Property market intelligence</p>
+            <h1>Make a clearer property decision.</h1>
             <p className="subtitle">
-              Turn planning data, site constraints and your strategy into a ranked
-              shortlist of Australian property opportunities.
+              Compare current listings, value, rent, cash requirements and planning
+              context in one decision-ready workspace.
             </p>
             <div className="hero-signals" aria-label="Platform capabilities">
               <span>NSW planning signals</span>
@@ -438,9 +455,9 @@ function App() {
 
         </section>
 
-        <MarketIntelligence />
+        <MarketIntelligence onOpenOpportunity={() => { setActiveSection("opportunities"); window.history.pushState(null, "", "#opportunities"); window.scrollTo({ top: 0, behavior: "smooth" }); }} /></>}
 
-        <section className="layout" id="search">
+        {activeSection === "opportunities" && <><header className="section-intro"><div><p className="eyebrow">Development site search</p><h1>Opportunity Finder</h1><p>Define your strategy and rank Australian sites by planning fit, constraints, market value and development economics.</p></div></header><section className="layout" id="search">
           <SearchPanel
             strategy={strategy}
             queryText={queryText}
@@ -542,7 +559,9 @@ function App() {
               ))}
             </div>
           </section>
-        </section>
+        </section></>}
+
+        {activeSection === "growth" && <GrowthExplorer />}
 
       </div> : <CollectionPage items={collections} loading={collectionsLoading} onBack={() => setActivePage("dashboard")} onRemove={handleRemoveCollection} onAISummary={(item, index) => handleAISummary(item.site, index, `collection-${item.id}`)} getAISummaryState={(item) => aiSummaries[`collection-${item.id}`]} />}
 

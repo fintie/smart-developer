@@ -46,7 +46,7 @@ function nswStampDuty(value: number) {
   return 49069 + (value - 1212000) * 0.055;
 }
 
-export function MarketIntelligence() {
+export function MarketIntelligence({ onOpenOpportunity }: { onOpenOpportunity: () => void }) {
   const [selected, setSelected] = useState<Listing>(listings[0]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [depositPct, setDepositPct] = useState(20);
@@ -99,7 +99,7 @@ export function MarketIntelligence() {
   if (detailOpen) {
     return (
       <section className="property-detail-page" aria-label={`Property details for ${selected.address}`}>
-        <header className="detail-page-topbar"><button type="button" onClick={() => { window.history.pushState(null, "", window.location.pathname); setDetailOpen(false); }}>← Back to listings</button><div><button type="button">♡ Save</button><button type="button" onClick={() => { window.history.pushState(null, "", "#search"); document.getElementById("search")?.scrollIntoView({ behavior: "smooth" }); }}>Create report</button></div></header>
+        <header className="detail-page-topbar"><button type="button" onClick={() => { window.history.pushState(null, "", window.location.pathname); setDetailOpen(false); }}>← Back to listings</button><div><button type="button">♡ Save</button><button type="button" onClick={onOpenOpportunity}>Create report</button></div></header>
         <div className="detail-page-hero"><img src={selected.image} alt={`Illustrative exterior for ${selected.address}`} /><span>Illustrative listing image</span><div><p>{selected.listed} · For sale</p><h1>{selected.address}</h1><div><span>{selected.beds} bedrooms</span><span>{selected.baths} bathrooms</span><span>{selected.cars} car</span><span>{selected.land ? `${selected.land} m² land` : selected.type}</span></div></div></div>
 
         <div className="detail-page-layout">
@@ -121,7 +121,7 @@ export function MarketIntelligence() {
             <div className="upfront-summary"><span>Estimated cash required</span><strong>{money(finance.upfront)}</strong><div><span>Deposit <b>{money(finance.deposit)}</b></span><span>NSW transfer duty <b>{money(finance.duty)}</b></span><span>Legal & inspections <b>{money(4400)}</b></span></div></div>
             <div className={finance.cashFlow >= 0 ? "cashflow-summary positive" : "cashflow-summary negative"}><span>Estimated monthly cash flow</span><strong>{finance.cashFlow >= 0 ? "+" : "−"}{money(Math.abs(finance.cashFlow))}</strong><small>Rent {money(finance.rentMonthly)} − loan {money(finance.repayment)} − other costs {money(monthlyCosts)}</small></div>
             <p className="calculator-note">Indicative principal-and-interest scenario only. Confirm duty, lending and costs with qualified advisers.</p>
-            <button className="report-cta" type="button" onClick={() => document.getElementById("search")?.scrollIntoView({ behavior: "smooth" })}>Continue to live analysis & report</button>
+            <button className="report-cta" type="button" onClick={onOpenOpportunity}>Continue to live analysis & report</button>
           </aside>
         </div>
       </section>
@@ -142,11 +142,6 @@ export function MarketIntelligence() {
             <div className="listing-card-body"><p>{listing.listed}</p><h3>{listing.address}</h3><div className="listing-facts"><span>{listing.beds} bed</span><span>{listing.baths} bath</span><span>{listing.cars} car</span><span>{listing.type}</span></div><div className="listing-card-value"><span>Modelled value</span><strong>{money(listing.valuation)}</strong></div></div>
           </button>
         </article>)}
-      </div>
-
-      <div className="market-tools">
-        <article><span>Growth explorer</span><h3>Compare suburb price, rent and population signals</h3><p>Map modelled growth with confidence gates before moving from region to property.</p><button type="button" disabled>Growth map · next phase</button></article>
-        <article><span>Weekly market report</span><h3>Review listing gaps and market movements</h3><p>Turn shortlist observations into a shareable report for brokers and advisers.</p><button type="button" disabled>Weekly report · next phase</button></article>
       </div>
     </section>
   );
