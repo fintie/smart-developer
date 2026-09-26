@@ -26,7 +26,8 @@ def _load_allowed_origins() -> list[str]:
     raw = os.getenv("ALLOWED_ORIGINS", "").strip()
     if not raw:
         return DEFAULT_ALLOWED_ORIGINS
-    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    configured_origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return list(dict.fromkeys([*DEFAULT_ALLOWED_ORIGINS, *configured_origins]))
 from backend.app.schemas import (
     FeedbackRequest,
     ReportRequest,
