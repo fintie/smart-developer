@@ -76,7 +76,7 @@ export function MarketIntelligence() {
     setSelected(listing);
     setWeeklyRent(listing.rent);
     setDetailOpen(true);
-    window.location.hash = `property/${listing.id}`;
+    window.history.pushState(null, "", `#property/${listing.id}`);
     window.setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 0);
   }
 
@@ -99,7 +99,7 @@ export function MarketIntelligence() {
   if (detailOpen) {
     return (
       <section className="property-detail-page" aria-label={`Property details for ${selected.address}`}>
-        <header className="detail-page-topbar"><button type="button" onClick={() => { window.location.hash = ""; setDetailOpen(false); }}>← Back to listings</button><div><button type="button">♡ Save</button><button type="button" onClick={() => { window.location.hash = "search"; document.getElementById("search")?.scrollIntoView({ behavior: "smooth" }); }}>Create report</button></div></header>
+        <header className="detail-page-topbar"><button type="button" onClick={() => { window.history.pushState(null, "", window.location.pathname); setDetailOpen(false); }}>← Back to listings</button><div><button type="button">♡ Save</button><button type="button" onClick={() => { window.history.pushState(null, "", "#search"); document.getElementById("search")?.scrollIntoView({ behavior: "smooth" }); }}>Create report</button></div></header>
         <div className="detail-page-hero"><img src={selected.image} alt={`Illustrative exterior for ${selected.address}`} /><span>Illustrative listing image</span><div><p>{selected.listed} · For sale</p><h1>{selected.address}</h1><div><span>{selected.beds} bedrooms</span><span>{selected.baths} bathrooms</span><span>{selected.cars} car</span><span>{selected.land ? `${selected.land} m² land` : selected.type}</span></div></div></div>
 
         <div className="detail-page-layout">

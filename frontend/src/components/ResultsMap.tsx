@@ -1,4 +1,5 @@
 import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import type { MapContainerProps, TileLayerProps } from "react-leaflet";
 import type { SiteResult } from "../api";
 
 type ResultsMapProps = {
@@ -25,21 +26,18 @@ export function ResultsMap({ results }: ResultsMapProps) {
     points[0].longitude as number,
   ];
 
+  // react-leaflet v5's published React 19 declarations omit inherited
+  // Leaflet options, so keep the runtime-supported options in typed records.
   const mapProps = {
     center,
     zoom: 13,
     scrollWheelZoom: false,
-    style: {
-      height: "360px",
-      width: "100%",
-      borderRadius: "18px",
-    },
-  } as any;
-
+    style: { height: "360px", width: "100%", borderRadius: "18px" },
+  } as unknown as MapContainerProps;
   const tileLayerProps = {
     attribution: "&copy; OpenStreetMap contributors",
     url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  } as any;
+  } as unknown as TileLayerProps;
 
   return (
     <div className="map-card">

@@ -12,6 +12,8 @@ from backend.app.routers import (
 )
 
 DEFAULT_ALLOWED_ORIGINS = [
+    "https://smart-developer.nextgenius.com.au",
+    "https://fintie.github.io",
     "https://smart-developer-frontend.vercel.app",
     "http://localhost:5173",
     "http://localhost:5174",

@@ -1,5 +1,8 @@
+const PRODUCTION_API_BASE_URL = "https://smart-developer-backend.onrender.com";
+
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8002";
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.PROD ? PRODUCTION_API_BASE_URL : "http://localhost:8002");
 
 export function buildPropertyImageUrl(site: {
   address?: string;
@@ -276,16 +279,25 @@ export function removeCollection(token: string, collectionId: number): Promise<v
 }
 
 export async function searchSites(payload: SearchPayload): Promise<SearchResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/search`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/search`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    throw new Error(
+      "The search service could not be reached. It may be waking up; please wait a moment and try again.",
+      { cause: error },
+    );
+  }
 
   if (!response.ok) {
-    throw new Error(await response.text());
+    const body = await response.json().catch(() => null) as { detail?: string } | null;
+    throw new Error(body?.detail || `Search failed (${response.status}). Please try again.`);
   }
 
   return response.json();
