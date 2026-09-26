@@ -102,13 +102,13 @@ export function MarketIntelligence() {
           <div className="upfront-summary"><span>Estimated cash required</span><strong>{money(finance.upfront)}</strong><div><span>Deposit <b>{money(finance.deposit)}</b></span><span>NSW transfer duty <b>{money(finance.duty)}</b></span><span>Legal & inspections <b>{money(4400)}</b></span></div></div>
           <div className={finance.cashFlow >= 0 ? "cashflow-summary positive" : "cashflow-summary negative"}><span>Estimated monthly cash flow</span><strong>{finance.cashFlow >= 0 ? "+" : "−"}{money(Math.abs(finance.cashFlow))}</strong><small>Rent {money(finance.rentMonthly)} − loan {money(finance.repayment)} − other costs {money(monthlyCosts)}</small></div>
           <p className="calculator-note">Indicative principal-and-interest scenario only. Duty estimate excludes concessions and special cases. Confirm with a broker, accountant and solicitor.</p>
-          <button className="report-cta" type="button">Create property report</button>
+          <button className="report-cta" type="button" onClick={() => document.getElementById("search")?.scrollIntoView({ behavior: "smooth" })}>Continue to live analysis & report</button>
         </aside>
       </div>
 
       <div className="market-tools">
-        <article><span>Growth explorer</span><h3>Compare suburb price, rent and population signals</h3><p>Map modelled growth with confidence gates before moving from region to property.</p><button type="button">Open growth map →</button></article>
-        <article><span>Weekly market report</span><h3>Review listing gaps and market movements</h3><p>Turn shortlist observations into a shareable report for brokers and advisers.</p><button type="button">View weekly report →</button></article>
+        <article><span>Growth explorer</span><h3>Compare suburb price, rent and population signals</h3><p>Map modelled growth with confidence gates before moving from region to property.</p><button type="button" disabled>Growth map · next phase</button></article>
+        <article><span>Weekly market report</span><h3>Review listing gaps and market movements</h3><p>Turn shortlist observations into a shareable report for brokers and advisers.</p><button type="button" disabled>Weekly report · next phase</button></article>
       </div>
     </section>
   );
