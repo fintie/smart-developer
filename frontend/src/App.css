@@ -1431,6 +1431,64 @@ body { background: #f8fafc; }
   .listing-history > div { grid-template-columns: 1fr; gap: 4px; }
 }
 
+/* Standalone property detail view */
+.property-detail-page { animation: detail-enter .24s ease-out; }
+.detail-page-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.detail-page-topbar > button, .detail-page-topbar > div button { padding: 9px 12px; border: 1px solid var(--sd-border); border-radius: 7px; color: var(--sd-ink); background: var(--sd-surface); cursor: pointer; font-size: 10px; font-weight: 750; }
+.detail-page-topbar > div { display: flex; gap: 8px; }
+.detail-page-topbar > div button:last-child { color: white; border-color: var(--sd-green); background: var(--sd-green); }
+.detail-page-hero { position: relative; min-height: 480px; overflow: hidden; border-radius: 14px; color: white; background: var(--sd-green); }
+.detail-page-hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(7,29,24,.91) 0%, rgba(7,29,24,.08) 70%); }
+.detail-page-hero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.detail-page-hero > span { position: absolute; z-index: 2; top: 14px; right: 14px; padding: 6px 9px; border-radius: 5px; color: rgba(255,255,255,.82); background: rgba(9,32,27,.72); font-size: 8px; text-transform: uppercase; }
+.detail-page-hero > div { position: absolute; z-index: 2; right: 0; bottom: 0; left: 0; padding: 38px; }
+.detail-page-hero p { margin: 0 0 8px; color: var(--sd-lime); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.detail-page-hero h1 { max-width: 900px; color: white; font-size: clamp(30px,4vw,50px); letter-spacing: -.05em; }
+.detail-page-hero > div > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.detail-page-hero > div > div span { padding: 7px 10px; border: 1px solid rgba(255,255,255,.18); border-radius: 999px; background: rgba(255,255,255,.09); font-size: 10px; }
+.detail-page-layout { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(330px,.65fr); gap: 16px; margin-top: 16px; align-items: start; }
+.detail-page-content { display: grid; gap: 14px; }
+.detail-price-grid { display: grid; grid-template-columns: repeat(3,1fr); overflow: hidden; border: 1px solid var(--sd-border); border-radius: 12px; background: var(--sd-border); gap: 1px; }
+.detail-price-grid article { display: grid; gap: 5px; padding: 19px; background: var(--sd-surface); }
+.detail-price-grid span, .property-attributes span, .planning-grid span, .suburb-metrics span { color: var(--sd-muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+.detail-price-grid strong { color: var(--sd-ink); font-size: 19px; }
+.detail-price-grid small { color: #728079; font-size: 8px; line-height: 1.4; }
+.detail-card { padding: 24px; border: 1px solid var(--sd-border); border-radius: 12px; background: var(--sd-surface); }
+.detail-card h2 { margin: 6px 0 18px; font-size: 21px; letter-spacing: -.035em; }
+.detail-copy { color: #556760; font-size: 12px; line-height: 1.7; }
+.property-attributes { display: grid; grid-template-columns: repeat(3,1fr); overflow: hidden; margin-top: 18px; border: 1px solid var(--sd-border); border-radius: 9px; background: var(--sd-border); gap: 1px; }
+.property-attributes > div { display: grid; gap: 5px; padding: 14px; background: #f8f8f3; }
+.property-attributes strong { font-size: 11px; }
+.suburb-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 16px; }
+.suburb-metrics > div { display: grid; gap: 5px; padding: 14px; border-radius: 8px; color: white; background: var(--sd-green); }
+.suburb-metrics span { color: rgba(255,255,255,.6); }
+.suburb-metrics strong { font-size: 18px; }
+.nearby-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+.nearby-grid article { padding: 14px; border: 1px solid var(--sd-border); border-radius: 8px; }
+.nearby-grid h3 { margin-bottom: 10px; font-size: 12px; }
+.nearby-grid p { margin: 6px 0; color: var(--sd-muted); font-size: 9px; }
+.source-note { display: block; margin-top: 13px; color: #8a9691; font-size: 8px; }
+.planning-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.planning-grid article { padding: 15px; border: 1px solid var(--sd-border); border-radius: 8px; }
+.planning-grid strong { display: block; margin: 6px 0; font-size: 11px; }
+.planning-grid p { margin: 0; color: var(--sd-muted); font-size: 9px; line-height: 1.55; }
+.detail-card.listing-history { margin: 0; }
+.detail-finance { top: 82px; }
+@keyframes detail-enter { from { opacity: 0; transform: translateY(8px); } }
+
+@media (max-width: 1050px) {
+  .detail-page-layout { grid-template-columns: 1fr; }
+  .detail-finance { position: static; }
+}
+
+@media (max-width: 680px) {
+  .detail-page-topbar { align-items: start; gap: 10px; }
+  .detail-page-topbar > div { flex-direction: column; }
+  .detail-page-hero { min-height: 420px; }
+  .detail-page-hero > div { padding: 24px 20px; }
+  .detail-price-grid, .property-attributes, .suburb-metrics, .nearby-grid, .planning-grid { grid-template-columns: 1fr; }
+}
+
 /* Smart Developer property-intelligence theme */
 :root {
   --sd-ink: #18312c;
