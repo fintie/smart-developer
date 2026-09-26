@@ -1389,6 +1389,11 @@ body { background: #f8fafc; }
 .listing-card-value { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--sd-border); }
 .listing-card-value span { color: var(--sd-muted); font-size: 9px; }
 .listing-card-value strong { color: var(--sd-ink); font-size: 13px; }
+.listing-card-insights { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 11px; }
+.listing-card-insights > span { display: grid; gap: 3px; padding: 9px; border-radius: 7px; background: #f4f6f1; }
+.listing-card-insights small { color: var(--sd-muted); font-size: 8px; }
+.listing-card-insights strong { color: var(--sd-green); font-size: 10px; }
+.listing-card-body > p.listing-inspection { margin: 10px 0 0; color: #52665f; font-size: 8px; letter-spacing: .02em; text-transform: none; }
 .property-analysis { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(330px,.72fr); gap: 16px; margin-top: 16px; align-items: start; }
 .property-profile, .finance-calculator { overflow: hidden; border: 1px solid var(--sd-border); border-radius: 12px; background: var(--sd-surface); }
 .profile-image { position: relative; height: 330px; overflow: hidden; }
@@ -1442,7 +1447,6 @@ body { background: #f8fafc; }
 
 @media (max-width: 1050px) {
   .listing-grid { grid-template-columns: 1fr 1fr; }
-  .listing-card:last-child { grid-column: 1 / -1; }
   .property-analysis { grid-template-columns: 1fr; }
   .finance-calculator { position: static; }
 }
@@ -1450,7 +1454,6 @@ body { background: #f8fafc; }
 @media (max-width: 680px) {
   .market-heading { align-items: start; flex-direction: column; }
   .listing-grid, .market-tools { grid-template-columns: 1fr; }
-  .listing-card:last-child { grid-column: auto; }
   .listing-image { height: 210px; }
   .profile-image { height: 240px; }
   .profile-title { flex-direction: column; }
