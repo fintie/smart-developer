@@ -25,6 +25,7 @@ import { RecommendationFeedbackModal } from "./components/RecommendationFeedback
 import { AuthDialog } from "./components/AuthDialog";
 import { DashboardLayout, type SignedInUser } from "./components/DashboardLayout";
 import { CollectionPage } from "./components/CollectionPage";
+import { MarketIntelligence } from "./components/MarketIntelligence";
 import { formatProfileLabel } from "./lib/format";
 import { STRATEGIES, type RankingProfile } from "./lib/strategies";
 
@@ -436,6 +437,8 @@ function App() {
           </div>
 
         </section>
+
+        <MarketIntelligence />
 
         <section className="layout" id="search">
           <SearchPanel
