@@ -35,7 +35,8 @@ export function SearchPanel({
 
   return (
     <aside className="panel search-panel">
-      <h2>Search Criteria</h2>
+      <p className="panel-kicker">Opportunity finder</p>
+      <h2>Define your site search</h2>
 
       <label>
         Strategy
@@ -102,7 +103,7 @@ export function SearchPanel({
       </label>
 
       <button className="primary-button" onClick={onSearch} disabled={loading}>
-        {loading ? "Searching..." : "Find Sites"}
+        {loading ? "Searching..." : "Find matching sites"}
       </button>
 
       <div className="demo-note">

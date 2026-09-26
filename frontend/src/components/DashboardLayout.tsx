@@ -47,7 +47,7 @@ export function DashboardLayout({ children, user, onOpenAuth, onSignOut, activeP
         <header className="dashboard-header">
           <div><p>Workspace</p><strong>Site Intelligence</strong></div>
           <div className="header-actions">
-            <span className="live-status"><i />Platform online</span>
+            <span className="live-status"><i />Property intelligence online</span>
             <button className="header-avatar" type="button" onClick={onOpenAuth} aria-label={user ? `Open account for ${user.username}` : "Sign in"}>{user?.avatar ? <img src={user.avatar} alt="" /> : initials}</button>
             {user && <button className="signout-button" type="button" onClick={onSignOut}>Sign out</button>}
           </div>

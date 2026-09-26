@@ -422,12 +422,17 @@ function App() {
       {activePage === "dashboard" ? <div className="workspace">
         <section className="hero">
           <div>
-            <p className="eyebrow">NextGenius · Smart Developer</p>
-            <h1>AI Site Recommendation Platform</h1>
+            <p className="eyebrow">Strategy-aware property intelligence</p>
+            <h1>Find sites with development potential.</h1>
             <p className="subtitle">
-              Search development sites with policy-aware ranking, economics-aware
-              scoring, ML market value estimates, and agent-facing explanations.
+              Turn planning data, site constraints and your strategy into a ranked
+              shortlist of Australian property opportunities.
             </p>
+            <div className="hero-signals" aria-label="Platform capabilities">
+              <span>NSW planning signals</span>
+              <span>Explainable site ranking</span>
+              <span>Risk-aware results</span>
+            </div>
           </div>
 
         </section>
